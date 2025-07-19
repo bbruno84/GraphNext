@@ -15,7 +15,7 @@ final class GraphStoreObservableTests: XCTestCase {
     var cancellables: Set<AnyCancellable> = []
     
     override func setUp() {
-        store = GraphStore(cacheEnabled: true)
+        store = GraphStore(useNSCache: true)
         cancellables = []
     }
     
@@ -33,13 +33,22 @@ final class GraphStoreObservableTests: XCTestCase {
             }
             .store(in: &cancellables)
         
-        store.add(node: Entity(type: "Car"))
+        let entity = Entity(
+            id: UUID(),
+            type: "Car",
+            created: AuditInfo(by: "test")
+        )
+        store.add(entity)
         wait(for: [expectation], timeout: 1)
     }
     
     func testObjectWillChangeIsCalledOnRemove() {
-        let entity = Entity(type: "Car")
-        store.add(node: entity)
+        let entity = Entity(
+            id: UUID(),
+            type: "Car",
+            created: AuditInfo(by: "test")
+        )
+        store.add(entity)
         
         let expectation = XCTestExpectation(description: "objectWillChange published on remove")
         
@@ -49,7 +58,8 @@ final class GraphStoreObservableTests: XCTestCase {
             }
             .store(in: &cancellables)
         
-        store.remove(id: entity.id)
+        store.removeNode(id: entity.id)
         wait(for: [expectation], timeout: 1)
     }
 }
+

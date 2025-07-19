@@ -13,7 +13,7 @@ final class GraphStoreTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
-        store = GraphStore(cacheEnabled: true)
+        store = GraphStore(useNSCache: true)
     }
     
     override func tearDown() {
@@ -22,63 +22,118 @@ final class GraphStoreTests: XCTestCase {
     }
     
     func testAddEntity() {
-        let entity = Entity(type: "Car", tags: ["test"])
-        store.add(node: entity)
+        var entity = Entity(
+            id: UUID(),
+            type: "Car",
+            created: AuditInfo(by: "test")
+        )
+        entity.tag = ["test"]
+        store.add(entity)
         let result = store.entity(id: entity.id)
         XCTAssertEqual(result?.id, entity.id)
         XCTAssertEqual(result?.type, "Car")
-        XCTAssertTrue(result?.tags.contains("test") ?? false)
+        XCTAssertTrue(result?.tag.contains("test") ?? false)
     }
     
     func testRemoveEntity() {
-        let entity = Entity(type: "Driver")
-        store.add(node: entity)
-        store.remove(id: entity.id)
+        let entity = Entity(
+            id: UUID(),
+            type: "Driver",
+            created: AuditInfo(by: "test")
+        )
+        store.add(entity)
+        store.removeNode(id: entity.id)
         XCTAssertNil(store.entity(id: entity.id))
     }
     
     func testEntitiesOfType() {
-        let car = Entity(type: "Car")
-        let bike = Entity(type: "Bike")
-        store.add(node: car)
-        store.add(node: bike)
+        let car = Entity(
+            id: UUID(),
+            type: "Car",
+            created: AuditInfo(by: "test")
+        )
+        let bike = Entity(
+            id: UUID(),
+            type: "Bike",
+            created: AuditInfo(by: "test")
+        )
+        store.add(car)
+        store.add(bike)
         let cars = store.entities(ofType: "Car")
         XCTAssertEqual(cars.count, 1)
         XCTAssertEqual(cars.first?.id, car.id)
     }
     
     func testEntitiesTagged() {
-        let tagged = Entity(type: "Car", tags: ["fast"])
-        let untagged = Entity(type: "Car")
-        store.add(node: tagged)
-        store.add(node: untagged)
+        var tagged = Entity(
+            id: UUID(),
+            type: "Car",
+            created: AuditInfo(by: "test")
+        )
+        tagged.tag = ["fast"]
+        
+        let untagged = Entity(
+            id: UUID(),
+            type: "Car",
+            created: AuditInfo(by: "test")
+        )
+        
+        store.add(tagged)
+        store.add(untagged)
         let fastEntities = store.entities(tagged: "fast")
         XCTAssertEqual(fastEntities.count, 1)
         XCTAssertEqual(fastEntities.first?.id, tagged.id)
     }
     
     func testAddRelationship() {
-        let from = Entity(type: "Start")
-        let to = Entity(type: "End")
-        let relationship = Relationship(type: "Link", from: from.id, to: to.id)
-        store.add(node: from)
-        store.add(node: to)
-        store.add(node: relationship)
+        let from = Entity(
+            id: UUID(),
+            type: "Start",
+            created: AuditInfo(by: "test")
+        )
+        let to = Entity(
+            id: UUID(),
+            type: "End",
+            created: AuditInfo(by: "test")
+        )
+        let relationship = Relationship(
+            id: UUID(),
+            type: "Link",
+            created: AuditInfo(by: "test"),
+            from: from.id,
+            to: to.id
+        )
+        store.add(from)
+        store.add(to)
+        store.add(relationship)
         let rels = store.relationships(from: from.id)
         XCTAssertEqual(rels.count, 1)
         XCTAssertEqual(rels.first?.to, to.id)
     }
     
     func testRelatedEntities() {
-        let a = Entity(type: "A")
-        let b = Entity(type: "B")
-        let rel = Relationship(type: "connects", from: a.id, to: b.id)
-        store.add(node: a)
-        store.add(node: b)
-        store.add(node: rel)
+        let a = Entity(
+            id: UUID(),
+            type: "A",
+            created: AuditInfo(by: "test")
+        )
+        let b = Entity(
+            id: UUID(),
+            type: "B",
+            created: AuditInfo(by: "test")
+        )
+        let rel = Relationship(
+            id: UUID(),
+            type: "connects",
+            created: AuditInfo(by: "test"),
+            from: a.id,
+            to: b.id
+        )
+        store.add(a)
+        store.add(b)
+        store.add(rel)
         let related = store.relatedEntities(from: a.id)
         XCTAssertEqual(related.count, 1)
         XCTAssertEqual(related.first?.id, b.id)
     }
 }
-

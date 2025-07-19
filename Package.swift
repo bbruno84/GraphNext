@@ -12,7 +12,10 @@ let package = Package(
     ],
     targets: [
         .target(name: "GraphNext"),
-        .target(name: "GraphPersistence"),
+        .target(
+            name: "GraphPersistence",
+            dependencies: ["GraphNext"]
+        ),
         .target(name: "GraphSyncEngine"),
         .target(name: "GraphAssets"),
         .testTarget(name: "GraphNextTests", dependencies: ["GraphNext"]),

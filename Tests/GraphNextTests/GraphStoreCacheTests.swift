@@ -11,31 +11,55 @@ import XCTest
 final class GraphStoreCacheTests: XCTestCase {
     
     func testCacheStoresEntities() {
-        let store = GraphStore(cacheEnabled: true)
-        let entity = Entity(type: "CacheTest")
-        store.add(node: entity)
+        let store = GraphStore(useNSCache: true)
+        let entity = Entity(
+            id: UUID(),
+            type: "CacheTest",
+            created: AuditInfo(by: "test")
+        )
+        store.add(entity)
         let cached = store.entity(id: entity.id)
         XCTAssertEqual(cached?.id, entity.id)
     }
     
     func testCacheStoresRelationships() {
-        let store = GraphStore(cacheEnabled: true)
-        let e1 = Entity(type: "A")
-        let e2 = Entity(type: "B")
-        let rel = Relationship(type: "connects", from: e1.id, to: e2.id)
-        store.add(node: e1)
-        store.add(node: e2)
-        store.add(node: rel)
+        let store = GraphStore(useNSCache: true)
+        let e1 = Entity(
+            id: UUID(),
+            type: "A",
+            created: AuditInfo(by: "test")
+        )
+        let e2 = Entity(
+            id: UUID(),
+            type: "B",
+            created: AuditInfo(by: "test")
+        )
+        let rel = Relationship(
+            id: UUID(),
+            type: "connects",
+            created: AuditInfo(by: "test"),
+            from: e1.id,
+            to: e2.id
+        )
+        store.add(e1)
+        store.add(e2)
+        store.add(rel)
         let cached = store.relationship(id: rel.id)
         XCTAssertEqual(cached?.id, rel.id)
     }
     
     func testCacheInvalidationOnRemove() {
-        let store = GraphStore(cacheEnabled: true)
-        let entity = Entity(type: "InvalidationTest")
-        store.add(node: entity)
+        let store = GraphStore(useNSCache: true)
+        let entity = Entity(
+            id: UUID(),
+            type: "InvalidationTest",
+            created: AuditInfo(by: "test")
+        )
+        store.add(entity)
         XCTAssertNotNil(store.entity(id: entity.id))
-        store.remove(id: entity.id)
+        store.removeNode(id: entity.id)
         XCTAssertNil(store.entity(id: entity.id))
     }
 }
+
+
