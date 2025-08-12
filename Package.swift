@@ -19,7 +19,10 @@ let package = Package(
                 .process("GraphNext.xcdatamodeld")
             ]
         ),
-        .target(name: "GraphSyncEngine"),
+        .target(
+            name: "GraphSyncEngine",
+            dependencies: ["GraphNext", "GraphPersistence"]
+        ),
         .target(name: "GraphAssets"),
         .testTarget(name: "GraphNextTests", dependencies: ["GraphNext"]),
         .testTarget(name: "GraphPersistenceTests", dependencies: ["GraphPersistence"]),

@@ -241,5 +241,11 @@ public final class GraphStore: ObservableObject {
         let relatedIDs = relationships(from: id).compactMap { $0.to }
         return relatedIDs.compactMap { entities[$0] }
     }
+    
+    public func clear() {
+        entities.removeAll()
+        relationships.removeAll()
+    }
+
 }
 
