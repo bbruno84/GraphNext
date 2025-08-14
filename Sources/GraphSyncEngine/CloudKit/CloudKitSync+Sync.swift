@@ -9,8 +9,10 @@ import Foundation
 
 extension CloudKitSync {
     public func sync() async throws {
+        isSyncing = true
+        defer { isSyncing = false }
+
         try await pull()
         try await push()
     }
 }
-

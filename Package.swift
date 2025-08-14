@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "GraphNext",
-    platforms: [.iOS(.v16)],
+    platforms: [.iOS(.v17)],
     products: [
         .library(name: "GraphNext", targets: ["GraphNext"]),
         .library(name: "GraphPersistence", targets: ["GraphPersistence"]),
