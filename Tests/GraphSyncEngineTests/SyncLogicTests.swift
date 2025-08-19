@@ -21,7 +21,7 @@ final class SyncLogicTests: XCTestCase {
         persistence = CoreDataGraphPersistenceController(storeName: "GraphNext", inMemory: true)
         store = GraphStore()
         backend = MockRemoteBackend()
-        sync = CloudKitSync(persistence: persistence, store: store, backend: backend)
+        sync = await CloudKitSync(persistence: persistence, store: store, backend: backend)
     }
 
     func testPullPopulatesStoreFromBackend() async throws {

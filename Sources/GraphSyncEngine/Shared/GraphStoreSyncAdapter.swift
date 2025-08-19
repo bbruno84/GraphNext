@@ -14,7 +14,7 @@ public protocol GraphStoreSyncAdapter {
 
 extension GraphStore: GraphStoreSyncAdapter {
     public func allEntities() -> [Entity] {
-        return entities()
+        return Array(entities.values)
     }
 
     public func allRelationships() -> [Relationship] {

@@ -13,6 +13,9 @@ extension CloudKitSync {
         defer { isSyncing = false }
 
         store.clear()
-        try await pull()
+        // Clear incremental push watermarks
+        lastPushedEntityTimestamp.removeAll()
+        lastPushedRelationshipTimestamp.removeAll()
+        try await pull() // remote-wins: riallinea dal backend
     }
 }

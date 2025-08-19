@@ -12,6 +12,7 @@ import GraphPersistence
 
 /// Factory che restituisce l'implementazione concreta di GraphSyncEngine in base al backend scelto.
 public enum GraphSyncEngineFactory {
+    @MainActor
     public static func make(
         backend: SyncBackendKind,
         store: GraphStore,
