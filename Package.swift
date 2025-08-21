@@ -1,33 +1,33 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 5.9
 import PackageDescription
 
 let package = Package(
     name: "GraphNext",
-    platforms: [.iOS(.v17)],
+    defaultLocalization: "en",
+    platforms: [
+        .iOS(.v17),
+        .macOS(.v13)
+    ],
     products: [
-        .library(name: "GraphNext", targets: ["GraphNext"]),
-        .library(name: "GraphPersistence", targets: ["GraphPersistence"]),
-        .library(name: "GraphSyncEngine", targets: ["GraphSyncEngine"]),
-        .library(name: "GraphAssets", targets: ["GraphAssets"])
+        .library(name: "GraphNext", targets: ["GraphNext"])
     ],
     targets: [
-        .target(name: "GraphNext"),
         .target(
-            name: "GraphPersistence",
-            dependencies: ["GraphNext"],
+            name: "GraphNext",
+            path: "Sources/GraphNext",
             resources: [
-                .process("GraphNext.xcdatamodeld")
+                // Modello Core Data all’interno del target principale
+                .process("Persistence/Resources/GraphNext.xcdatamodeld")
+            ],
+            swiftSettings: [
+                // Abilita sempre rtti minori e ottimizzazioni se vuoi
+                // .unsafeFlags(["-enable-testing"], .when(configuration: .debug))
             ]
         ),
-        .target(
-            name: "GraphSyncEngine",
-            dependencies: ["GraphNext", "GraphPersistence"]
-        ),
-        .target(name: "GraphAssets"),
-        .testTarget(name: "GraphNextTests", dependencies: ["GraphNext"]),
-        .testTarget(name: "GraphPersistenceTests", dependencies: ["GraphPersistence"]),
-        .testTarget(name: "GraphSyncEngineTests", dependencies: ["GraphSyncEngine"]),
-        .testTarget(name: "GraphAssetsTests", dependencies: ["GraphAssets"])
+        .testTarget(
+            name: "GraphNextTests",
+            dependencies: ["GraphNext"],
+            path: "Tests/GraphNextTests"
+        )
     ]
 )
-
