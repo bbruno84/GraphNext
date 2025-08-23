@@ -90,7 +90,7 @@ final class PushFlowTests: XCTestCase {
 
         // 4) aggiorno SOLO e1 (updated.at più recente) → push incrementale con solo e1
         e1.updated = .init(by: "tester", at: Date().addingTimeInterval(5))
-        e1.indexed["k"] = "v"
+        e1.payload = ["note": .string("updated")]
         await store.update(node: e1, isRemote: false)
 
         try await sync.push()

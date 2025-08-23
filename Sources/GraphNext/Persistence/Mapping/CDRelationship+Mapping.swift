@@ -14,7 +14,6 @@ extension CDRelationship {
         type = relationship.type
         tag = relationship.tag as NSSet
         group = relationship.group as NSSet
-        indexed = relationship.indexed as NSDictionary
         created = try? JSONEncoder().encode(relationship.created)
         updatedAt = try? JSONEncoder().encode(relationship.updated)
         version = relationship.version.map { Int64($0) } ?? 0
@@ -31,7 +30,6 @@ extension CDRelationship {
             type: type!,
             tag: (tag as? Set<String>) ?? [],
             group: (group as? Set<String>) ?? [],
-            indexed: (indexed as? [String: String]) ?? [:],
             created: (try? JSONDecoder().decode(AuditInfo.self, from: created ?? Data())) ?? .init(by: "unknown", at: .distantPast),
             updated: (try? JSONDecoder().decode(AuditInfo.self, from: updatedAt ?? Data())),
             version: Int(version),
@@ -43,4 +41,3 @@ extension CDRelationship {
         )
     }
 }
-

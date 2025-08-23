@@ -11,9 +11,15 @@ let package = Package(
     products: [
         .library(name: "GraphNext", targets: ["GraphNext"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/groue/GRDB.swift.git", from: "6.25.0")
+    ],
     targets: [
         .target(
             name: "GraphNext",
+            dependencies: [
+                .product(name: "GRDB", package: "GRDB.swift")
+            ],
             path: "Sources/GraphNext",
             resources: [
                 // Modello Core Data all’interno del target principale

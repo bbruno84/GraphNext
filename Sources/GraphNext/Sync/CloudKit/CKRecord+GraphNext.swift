@@ -18,9 +18,6 @@ extension Entity {
             record["payload"] = payloadData as CKRecordValue
         }
         
-        if let indexedData = try? JSONEncoder().encode(self.indexed) {
-            record["indexed"] = indexedData as CKRecordValue
-        }
         
         record["sharedWith"] = self.sharedWith as CKRecordValue
         
