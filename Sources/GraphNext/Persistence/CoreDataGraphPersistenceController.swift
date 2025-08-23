@@ -242,4 +242,101 @@ public final class CoreDataGraphPersistenceController {
     }
 }
 
-extension CoreDataGraphPersistenceController: GraphPersistenceController {}
+extension CoreDataGraphPersistenceController: GraphPersistenceController {
+    
+    public func saveEntity(_ entity: Entity) async throws {
+        try save(node: entity)
+    }
+
+    public func entity(id: UUID) async throws -> Entity? {
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                if let node = try loadNode(id: id) as? Entity {
+                    continuation.resume(returning: node)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    public func deleteEntity(id: UUID) async throws {
+        try deleteNode(id: id)
+    }
+
+    public func saveEntities(_ entities: [Entity]) async throws {
+        for entity in entities {
+            try await saveEntity(entity)
+        }
+    }
+
+    public func deleteEntities(_ ids: [UUID]) async throws {
+        for id in ids {
+            try await deleteEntity(id: id)
+        }
+    }
+
+    public func saveRelationship(_ relationship: Relationship) async throws {
+        try save(node: relationship)
+    }
+
+    public func relationship(id: UUID) async throws -> Relationship? {
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                if let node = try loadNode(id: id) as? Relationship {
+                    continuation.resume(returning: node)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    public func deleteRelationship(id: UUID) async throws {
+        try deleteNode(id: id)
+    }
+
+    public func saveRelationships(_ relationships: [Relationship]) async throws {
+        for relationship in relationships {
+            try await saveRelationship(relationship)
+        }
+    }
+
+    public func deleteRelationships(_ ids: [UUID]) async throws {
+        for id in ids {
+            try await deleteRelationship(id: id)
+        }
+    }
+
+    public func allEntities() async throws -> [Entity] {
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                let all = try allNodes(ofType: "") // recupera tutto, filtraggio opzionale
+                let entities = all.compactMap { $0 as? Entity }
+                continuation.resume(returning: entities)
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    public func allRelationships() async throws -> [Relationship] {
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                let all = try allNodes(ofType: "") // recupera tutto, filtraggio opzionale
+                let relationships = all.compactMap { $0 as? Relationship }
+                continuation.resume(returning: relationships)
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    public func reset() async throws {
+        throw NSError(domain: "GraphNext.CoreData", code: -1, userInfo: [NSLocalizedDescriptionKey: "Reset non implementato in CoreDataGraphPersistenceController"])
+    }
+}

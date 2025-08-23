@@ -53,6 +53,8 @@ public struct GraphNextConfig {
     /// Factory per creare i backend di sincronizzazione (CloudKit, mock, ecc.).
     /// Ritorna la lista di engine già costruiti e pronti all’uso.
     public var makeBackends: (_ store: GraphStore, _ persistence: GraphPersistenceController, _ instanceID: String) throws -> [any GraphSyncEngine]
+    
+    public var storage: [String: Any] = [:]
 
     // MARK: Inizializzatore con default sensati
     public init(
@@ -87,6 +89,21 @@ public struct GraphNextConfig {
         self.instanceID = instanceID
         self.makePersistence = makePersistence
         self.makeBackends = makeBackends
+    }
+    
+    public enum PersistenceKind {
+        case grdb
+        case coreData
+    }
+
+    public var persistenceKind: PersistenceKind {
+        get { storage["persistenceKind"] as? PersistenceKind ?? .grdb }
+        set { storage["persistenceKind"] = newValue }
+    }
+
+    public var databaseName: String {
+        get { storage["databaseName"] as? String ?? "GraphNext" }
+        set { storage["databaseName"] = newValue }
     }
 }
 
