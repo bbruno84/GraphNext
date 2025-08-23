@@ -49,7 +49,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryEntities(wherePayloadKey key: String, equals value: GraphPayloadValue) async throws -> [Entity] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) = ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeEntity(from:))
@@ -58,7 +59,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryRelationships(wherePayloadKey key: String, equals value: GraphPayloadValue) async throws -> [Relationship] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) = ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeRelationship(from:))
@@ -67,7 +69,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryEntities(wherePayloadKey key: String, greaterThan value: GraphPayloadValue) async throws -> [Entity] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) > ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeEntity(from:))
@@ -76,7 +79,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryRelationships(wherePayloadKey key: String, greaterThan value: GraphPayloadValue) async throws -> [Relationship] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) > ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeRelationship(from:))
@@ -85,7 +89,8 @@ extension GRDBGraphPersistenceController {
     
     public func queryEntities(wherePayloadKey key: String, lessThan value: GraphPayloadValue) async throws -> [Entity] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) < ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeEntity(from:))
@@ -94,7 +99,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryEntities(wherePayloadKey key: String, greaterThanOrEqualTo value: GraphPayloadValue) async throws -> [Entity] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) >= ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeEntity(from:))
@@ -103,7 +109,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryEntities(wherePayloadKey key: String, lessThanOrEqualTo value: GraphPayloadValue) async throws -> [Entity] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) <= ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeEntity(from:))
@@ -112,7 +119,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryEntities(wherePayloadKey key: String, between lower: GraphPayloadValue, and upper: GraphPayloadValue) async throws -> [Entity] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) BETWEEN ? AND ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [lower, upper])
             return try rows.compactMap(self.decodeEntity(from:))
@@ -121,7 +129,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryRelationships(wherePayloadKey key: String, lessThan value: GraphPayloadValue) async throws -> [Relationship] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) < ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeRelationship(from:))
@@ -130,7 +139,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryRelationships(wherePayloadKey key: String, greaterThanOrEqualTo value: GraphPayloadValue) async throws -> [Relationship] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) >= ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeRelationship(from:))
@@ -139,7 +149,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryRelationships(wherePayloadKey key: String, lessThanOrEqualTo value: GraphPayloadValue) async throws -> [Relationship] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) <= ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeRelationship(from:))
@@ -148,7 +159,8 @@ extension GRDBGraphPersistenceController {
 
     public func queryRelationships(wherePayloadKey key: String, between lower: GraphPayloadValue, and upper: GraphPayloadValue) async throws -> [Relationship] {
         try await dbQueue.read { db in
-            let columnPath = "json_extract(payload, '$.\(key).value')"
+            let safeKey = try self.validatedJSONKey(key)
+            let columnPath = "json_extract(payload, '$.\(safeKey).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) BETWEEN ? AND ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [lower, upper])
             return try rows.compactMap(self.decodeRelationship(from:))
@@ -172,6 +184,17 @@ extension GRDBGraphPersistenceController {
             let sql = "SELECT * FROM relationships WHERE fromId = ?"
             let rows = try Row.fetchAll(db, sql: sql, arguments: [entityId.uuidString])
             return try rows.compactMap(self.decodeRelationship(from:))
+        }
+    }
+}
+
+private extension GRDBGraphPersistenceController {
+    func validatedJSONKey(_ key: String) throws -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
+        if key.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
+            return key
+        } else {
+            throw NSError(domain: "GraphNext", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid payload key"])
         }
     }
 }

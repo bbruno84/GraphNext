@@ -6,13 +6,13 @@ let package = Package(
     defaultLocalization: "en",
     platforms: [
         .iOS(.v17),
-        .macOS(.v13)
+        .macOS(.v14)
     ],
     products: [
         .library(name: "GraphNext", targets: ["GraphNext"])
     ],
     dependencies: [
-        .package(url: "https://github.com/groue/GRDB.swift.git", from: "6.25.0")
+        .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.6.1")
     ],
     targets: [
         .target(

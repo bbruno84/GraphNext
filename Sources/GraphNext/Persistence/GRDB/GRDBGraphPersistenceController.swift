@@ -13,10 +13,18 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
     internal let dbQueue: DatabaseQueue
 
     public init(path: String, inMemory: Bool = false) throws {
+        var config = Configuration()
+        config.prepareDatabase { db in
+            // Executed outside of transactions on each new connection
+            try! db.execute(sql: "PRAGMA foreign_keys = ON;")
+            try! db.execute(sql: "PRAGMA journal_mode = WAL;")
+            try! db.execute(sql: "PRAGMA synchronous = NORMAL;")
+        }
+
         if inMemory {
-            dbQueue = try DatabaseQueue()
+            dbQueue = try DatabaseQueue(configuration: config)
         } else {
-            dbQueue = try DatabaseQueue(path: path)
+            dbQueue = try DatabaseQueue(path: path, configuration: config)
         }
 
         // Apply schema migrations
@@ -105,8 +113,14 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
     }
 
     public func deleteEntities(_ ids: [UUID]) async throws {
-        for id in ids {
-            try await deleteEntity(id: id)
+        guard !ids.isEmpty else { return }
+        let strings = ids.map(\.uuidString)
+        let placeholders = Array(repeating: "?", count: strings.count).joined(separator: ",")
+        try await dbQueue.write { db in
+            // First remove relationships that reference these entities
+            try db.execute(sql: "DELETE FROM relationships WHERE fromId IN (\(placeholders)) OR toId IN (\(placeholders))", arguments: StatementArguments(strings + strings))
+            // Then remove the entities
+            try db.execute(sql: "DELETE FROM entities WHERE id IN (\(placeholders))", arguments: StatementArguments(strings))
         }
     }
 
@@ -115,6 +129,9 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
     public func saveRelationship(_ relationship: Relationship) async throws {
         
         try await dbQueue.write { db in
+            guard let from = relationship.from, let to = relationship.to else {
+                throw NSError(domain: "GraphNext", code: 400, userInfo: [NSLocalizedDescriptionKey: "Relationship requires non-nil from/to"])
+            }
             try db.execute(
                 sql: """
                 INSERT OR REPLACE INTO relationships (id, type, fromId, toId, payload, createdAt, createdBy, updatedAt, updatedBy, tags, groupName, sharedWith, permissions)
@@ -123,8 +140,8 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
                 arguments: [
                     "id": relationship.id.uuidString,
                     "type": relationship.type,
-                    "fromId": relationship.from?.uuidString ?? "",
-                    "toId": relationship.to?.uuidString ?? "",
+                    "fromId": from.uuidString,
+                    "toId": to.uuidString,
                     "payload": try self.encodeJSON(relationship.payload),
                     "createdAt": relationship.created.at.timeIntervalSince1970,
                     "createdBy": relationship.created.by,
@@ -159,8 +176,11 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
     }
 
     public func deleteRelationships(_ ids: [UUID]) async throws {
-        for id in ids {
-            try await deleteRelationship(id: id)
+        guard !ids.isEmpty else { return }
+        let strings = ids.map(\.uuidString)
+        let placeholders = Array(repeating: "?", count: strings.count).joined(separator: ",")
+        try await dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM relationships WHERE id IN (\(placeholders))", arguments: StatementArguments(strings))
         }
     }
 

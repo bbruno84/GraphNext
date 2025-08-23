@@ -19,7 +19,7 @@ extension GRDBGraphPersistenceController {
     ) async throws -> AssetMetadata {
         try await dbQueue.write { db in
             let length = data.count
-            let sha256 = Data(SHA256.hash(data: data)).base64EncodedString()
+            let sha256 = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 
             try db.execute(sql: """
                 INSERT OR REPLACE INTO asset_blobs (entityId, data, length, sha256, mimeType, fileName)
