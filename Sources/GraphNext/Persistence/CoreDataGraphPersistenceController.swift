@@ -8,7 +8,7 @@
 import Foundation
 import CoreData
 
-public final class CoreDataGraphPersistenceController: GraphPersistenceController {
+public final class CoreDataGraphPersistenceController {
     
     private let container: NSPersistentContainer
 
@@ -20,11 +20,11 @@ public final class CoreDataGraphPersistenceController: GraphPersistenceControlle
 
         container = NSPersistentContainer(name: storeName, managedObjectModel: model)
 
-        if inMemory {
-            let description = NSPersistentStoreDescription()
-            description.type = NSInMemoryStoreType
-            container.persistentStoreDescriptions = [description]
-        }
+        let description = NSPersistentStoreDescription()
+        description.type = inMemory ? NSInMemoryStoreType : NSSQLiteStoreType
+        description.shouldMigrateStoreAutomatically = true
+        description.shouldInferMappingModelAutomatically = true
+        container.persistentStoreDescriptions = [description]
 
         container.loadPersistentStores { _, error in
             if let error = error {
@@ -32,79 +32,155 @@ public final class CoreDataGraphPersistenceController: GraphPersistenceControlle
             }
         }
     }
-    
-    private var context: NSManagedObjectContext {
-        container.viewContext
-    }
 
     // MARK: - Save
-    
+
     public func save(node: any GraphNode) throws {
-        if let entity = node as? Entity {
-            let cdEntity = fetchOrCreateEntity(id: entity.id)
-            cdEntity.populate(from: entity)
-        } else if let relationship = node as? Relationship {
-            let cdRelationship = fetchOrCreateRelationship(id: relationship.id)
-            cdRelationship.populate(from: relationship)
+        var thrownError: Error?
+        let semaphore = DispatchSemaphore(value: 0)
+        container.performBackgroundTask { context in
+            do {
+                if let entity = node as? Entity {
+                    let cdEntity = self.fetchOrCreateEntity(id: entity.id, in: context)
+                    cdEntity.populate(from: entity)
+                } else if let relationship = node as? Relationship {
+                    let cdRelationship = self.fetchOrCreateRelationship(id: relationship.id, in: context)
+                    cdRelationship.populate(from: relationship)
+                }
+                try context.save()
+            } catch {
+                thrownError = error
+            }
+            semaphore.signal()
         }
-        try context.save()
+        semaphore.wait()
+        if let error = thrownError {
+            throw error
+        }
     }
 
     // MARK: - Load Node
-    
+
     public func loadNode(id: UUID) throws -> (any GraphNode)? {
-        if let cdEntity = fetchEntity(id: id) {
-            return cdEntity.toEntity()
+        var result: (any GraphNode)?
+        var thrownError: Error?
+        let semaphore = DispatchSemaphore(value: 0)
+        container.performBackgroundTask { context in
+            if let cdEntity = self.fetchEntity(id: id, in: context) {
+                result = cdEntity.toEntity()
+            } else if let cdRelationship = self.fetchRelationship(id: id, in: context) {
+                result = cdRelationship.toRelationship()
+            }
+            semaphore.signal()
         }
-        if let cdRelationship = fetchRelationship(id: id) {
-            return cdRelationship.toRelationship()
+        semaphore.wait()
+        if let error = thrownError {
+            throw error
         }
-        return nil
+        return result
     }
 
     // MARK: - All Nodes
-    
+
     public func allNodes(ofType type: String) throws -> [any GraphNode] {
-        let entityRequest: NSFetchRequest<CDEntity> = CDEntity.fetchRequest()
-        let relationshipRequest: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
-        entityRequest.predicate = NSPredicate(format: "type == %@", type)
-        relationshipRequest.predicate = NSPredicate(format: "type == %@", type)
-        
-        let entities = try context.fetch(entityRequest).map { $0.toEntity() }
-        let relationships = try context.fetch(relationshipRequest).map { $0.toRelationship() }
-        return entities + relationships
+        var result: [any GraphNode] = []
+        var thrownError: Error?
+        let semaphore = DispatchSemaphore(value: 0)
+        container.performBackgroundTask { context in
+            do {
+                let entityRequest: NSFetchRequest<CDEntity> = CDEntity.fetchRequest()
+                let relationshipRequest: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
+                entityRequest.predicate = NSPredicate(format: "type == %@", type)
+                relationshipRequest.predicate = NSPredicate(format: "type == %@", type)
+
+                let entities = try context.fetch(entityRequest).map { $0.toEntity() }
+                let relationships = try context.fetch(relationshipRequest).map { $0.toRelationship() }
+                result = entities + relationships
+            } catch {
+                thrownError = error
+            }
+            semaphore.signal()
+        }
+        semaphore.wait()
+        if let error = thrownError {
+            throw error
+        }
+        return result
     }
 
     // MARK: - Load Relationships
-    
+
     public func loadRelationships(from id: UUID) throws -> [Relationship] {
-        let request: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
-        request.predicate = NSPredicate(format: "from == %@", id as CVarArg)
-        return try context.fetch(request).map { $0.toRelationship() }
+        var result: [Relationship] = []
+        var thrownError: Error?
+        let semaphore = DispatchSemaphore(value: 0)
+        container.performBackgroundTask { context in
+            do {
+                let request: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
+                request.predicate = NSPredicate(format: "from == %@", id as CVarArg)
+                result = try context.fetch(request).map { $0.toRelationship() }
+            } catch {
+                thrownError = error
+            }
+            semaphore.signal()
+        }
+        semaphore.wait()
+        if let error = thrownError {
+            throw error
+        }
+        return result
     }
 
     public func loadRelationships(to id: UUID) throws -> [Relationship] {
-        let request: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
-        request.predicate = NSPredicate(format: "to == %@", id as CVarArg)
-        return try context.fetch(request).map { $0.toRelationship() }
+        var result: [Relationship] = []
+        var thrownError: Error?
+        let semaphore = DispatchSemaphore(value: 0)
+        container.performBackgroundTask { context in
+            do {
+                let request: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
+                request.predicate = NSPredicate(format: "to == %@", id as CVarArg)
+                result = try context.fetch(request).map { $0.toRelationship() }
+            } catch {
+                thrownError = error
+            }
+            semaphore.signal()
+        }
+        semaphore.wait()
+        if let error = thrownError {
+            throw error
+        }
+        return result
     }
 
     // MARK: - Delete Node
-    
+
     public func deleteNode(id: UUID) throws {
-        if let entity = fetchEntity(id: id) {
-            context.delete(entity)
+        var thrownError: Error?
+        let semaphore = DispatchSemaphore(value: 0)
+        container.performBackgroundTask { context in
+            if let entity = self.fetchEntity(id: id, in: context) {
+                context.delete(entity)
+            }
+            if let relationship = self.fetchRelationship(id: id, in: context) {
+                context.delete(relationship)
+            }
+            do {
+                try context.save()
+            } catch {
+                thrownError = error
+            }
+            semaphore.signal()
         }
-        if let relationship = fetchRelationship(id: id) {
-            context.delete(relationship)
+        semaphore.wait()
+        if let error = thrownError {
+            throw error
         }
-        try context.save()
     }
 
     // MARK: - Private Helpers
 
-    private func fetchOrCreateEntity(id: UUID) -> CDEntity {
-        if let existing = fetchEntity(id: id) {
+    private func fetchOrCreateEntity(id: UUID, in context: NSManagedObjectContext) -> CDEntity {
+        if let existing = fetchEntity(id: id, in: context) {
             return existing
         }
         let newEntity = CDEntity(context: context)
@@ -112,8 +188,8 @@ public final class CoreDataGraphPersistenceController: GraphPersistenceControlle
         return newEntity
     }
 
-    private func fetchOrCreateRelationship(id: UUID) -> CDRelationship {
-        if let existing = fetchRelationship(id: id) {
+    private func fetchOrCreateRelationship(id: UUID, in context: NSManagedObjectContext) -> CDRelationship {
+        if let existing = fetchRelationship(id: id, in: context) {
             return existing
         }
         let newRelationship = CDRelationship(context: context)
@@ -121,15 +197,49 @@ public final class CoreDataGraphPersistenceController: GraphPersistenceControlle
         return newRelationship
     }
 
-    private func fetchEntity(id: UUID) -> CDEntity? {
+    private func fetchEntity(id: UUID, in context: NSManagedObjectContext) -> CDEntity? {
         let request: NSFetchRequest<CDEntity> = CDEntity.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         return try? context.fetch(request).first
     }
 
-    private func fetchRelationship(id: UUID) -> CDRelationship? {
+    private func fetchRelationship(id: UUID, in context: NSManagedObjectContext) -> CDRelationship? {
         let request: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         return try? context.fetch(request).first
     }
+    
+    // MARK: - Cascade Delete: Entity + Attached Relationships
+
+    public func deleteEntityAndAttachedRelationships(id: UUID) async throws {
+        try await container.performBackgroundTask { context in
+            // 1) Elimina relazioni collegate (fetch + delete manuale)
+            let relFetch: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
+            relFetch.predicate = NSPredicate(format: "from == %@ OR to == %@", id as CVarArg, id as CVarArg)
+            relFetch.includesPropertyValues = false
+            let rels = try context.fetch(relFetch)
+            rels.forEach(context.delete)
+
+            // 2) Elimina l'entity se presente
+            if let entity = try self.fetchCDEntity(id: id, in: context) {
+                context.delete(entity)
+            }
+
+            // 3) Salvataggio atomico
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+    }
+
+    // MARK: - Helper per fetch CDEntity
+
+    private func fetchCDEntity(id: UUID, in context: NSManagedObjectContext) throws -> CDEntity? {
+        let req: NSFetchRequest<CDEntity> = CDEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        req.fetchLimit = 1
+        return try context.fetch(req).first
+    }
 }
+
+extension CoreDataGraphPersistenceController: GraphPersistenceController {}

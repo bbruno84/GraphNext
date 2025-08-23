@@ -17,7 +17,7 @@ final class DebounceTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         persistence = CoreDataGraphPersistenceController(storeName: "GraphNext-Debounce", inMemory: true)
-        store = GraphStore()
+        store = await GraphStore()
         backend = MockRemoteBackend()
 
         // Config con debounce ridotto per test veloci

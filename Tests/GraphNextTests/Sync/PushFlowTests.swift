@@ -17,7 +17,7 @@ final class PushFlowTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         persistence = CoreDataGraphPersistenceController(storeName: "GraphNext-Push", inMemory: true)
-        store = GraphStore()
+        store = await GraphStore()
         backend = MockRemoteBackend()
 
         // Debounce molto alto per evitare l'auto-push durante i test (push solo manuale)
@@ -76,8 +76,8 @@ final class PushFlowTests: XCTestCase {
         // 1) Inserisco 2 entities nello store
         var e1 = makeEntity(type: "P1")
         var e2 = makeEntity(type: "P2")
-        store.add(e1)
-        store.add(e2)
+        await store.add(node: e1, isRemote: false)
+        await store.add(node: e2, isRemote: false)
 
         // 2) push manuale → deve inviare entrambe (primo batch)
         try await sync.push()
@@ -91,7 +91,7 @@ final class PushFlowTests: XCTestCase {
         // 4) aggiorno SOLO e1 (updated.at più recente) → push incrementale con solo e1
         e1.updated = .init(by: "tester", at: Date().addingTimeInterval(5))
         e1.indexed["k"] = "v"
-        store.update(e1)
+        await store.update(node: e1, isRemote: false)
 
         try await sync.push()
         XCTAssertEqual(backend.savedEntitiesBatches.count, 2, "Secondo push: batch incrementale")
@@ -105,12 +105,12 @@ final class PushFlowTests: XCTestCase {
         // Prepara 2 entity collegate
         let a = makeEntity(type: "A")
         let b = makeEntity(type: "B")
-        store.add(a)
-        store.add(b)
+        await store.add(node: a, isRemote: false)
+        await store.add(node: b, isRemote: false)
 
         // Relationship iniziale
         var rel = makeRelationship(type: "link", from: a.id, to: b.id)
-        store.add(rel)
+        await store.add(node: rel, isRemote: false)
 
         // Primo push: invia entities e relationship
         try await sync.push()
@@ -125,7 +125,7 @@ final class PushFlowTests: XCTestCase {
         // Aggiorno la relationship → push incrementale solo su quella relationship
         rel.updated = .init(by: "tester", at: Date().addingTimeInterval(10))
         rel.indexed["rk"] = "rv"
-        store.update(rel)
+        await store.update(node: rel, isRemote: false)
 
         try await sync.push()
         XCTAssertEqual(backend.savedRelationshipsBatches.count, 2, "Relationship aggiornata pushata in batch incrementale")

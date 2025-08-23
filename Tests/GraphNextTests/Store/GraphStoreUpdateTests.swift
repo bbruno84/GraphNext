@@ -10,29 +10,29 @@ import XCTest
 
 final class GraphStoreUpdateTests: XCTestCase {
     
-    func testUpdateReplacesEntity() {
-        let store = GraphStore(useNSCache: true)
+    func testUpdateReplacesEntity() async {
+        let store = await GraphStore(useNSCache: true)
         let id = UUID()
         let entity1 = Entity(
             id: id,
             type: "OldType",
             created: AuditInfo(by: "test")
         )
-        store.add(entity1)
+        await store.add(node: entity1, isRemote: false)
         
         let entity2 = Entity(
             id: id,
             type: "NewType",
             created: AuditInfo(by: "test")
         )
-        store.update(entity2)
+        await store.update(node: entity2, isRemote: false)
         
-        let result = store.entity(id: id)
+        let result = await store.entity(id: id)
         XCTAssertEqual(result?.type, "NewType")
     }
     
-    func testUpdateReplacesRelationship() {
-        let store = GraphStore(useNSCache: true)
+    func testUpdateReplacesRelationship() async {
+        let store = await GraphStore(useNSCache: true)
         let e1 = Entity(
             id: UUID(),
             type: "A",
@@ -43,8 +43,8 @@ final class GraphStoreUpdateTests: XCTestCase {
             type: "B",
             created: AuditInfo(by: "test")
         )
-        store.add(e1)
-        store.add(e2)
+        await store.add(node: e1, isRemote: false)
+        await store.add(node: e2, isRemote: false)
         
         let id = UUID()
         let rel1 = Relationship(
@@ -54,7 +54,7 @@ final class GraphStoreUpdateTests: XCTestCase {
             from: e1.id,
             to: e2.id
         )
-        store.add(rel1)
+        await store.add(node: rel1, isRemote: false)
         
         let rel2 = Relationship(
             id: id,
@@ -63,9 +63,9 @@ final class GraphStoreUpdateTests: XCTestCase {
             from: e1.id,
             to: e2.id
         )
-        store.update(rel2)
+        await store.update(node: rel2, isRemote: false)
         
-        let result = store.relationship(id: id)
+        let result = await store.relationship(id: id)
         XCTAssertEqual(result?.type, "NewLink")
     }
 }

@@ -17,7 +17,7 @@ final class DeltaDeletionTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         persistence = CoreDataGraphPersistenceController(storeName: "GraphNext-DeltaDeletion", inMemory: true)
-        store = GraphStore()
+        store = await GraphStore()
         backend = MockRemoteBackend()
         sync = await CloudKitSync(persistence: persistence, store: store, backend: backend)
     }
@@ -26,7 +26,7 @@ final class DeltaDeletionTests: XCTestCase {
         // 1) Precarichiamo lo store locale con una entity e una relationship
         let orphanID = UUID()
         let eLocal = Entity(id: orphanID, type: "Local", created: .init(by: "l", at: .now))
-        store.add(eLocal)
+        await store.add(node: eLocal, isRemote: false)
 
         // 2) Simuliamo che il backend indichi la cancellazione di quella entity
         backend.deletedEntityIDsBuffer = [orphanID]
@@ -40,16 +40,18 @@ final class DeltaDeletionTests: XCTestCase {
         try await sync.pull()
 
         // 5) Verifiche: la entity cancellata deve sparire
-        XCTAssertNil(store.entities[orphanID], "La entity da cancellare dovrebbe essere stata rimossa dallo store")
+        let deletedEntity = await store.entity(id: orphanID)
+        XCTAssertNil(deletedEntity, "La entity da cancellare dovrebbe essere stata rimossa dallo store")
 
         // E la nuova entity remota deve essere presente
-        XCTAssertNotNil(store.entities[newEntity.id], "La nuova entity remota dovrebbe essere stata aggiunta allo store")
+        let addedEntity = await store.entity(id: newEntity.id)
+        XCTAssertNotNil(addedEntity, "La nuova entity remota dovrebbe essere stata aggiunta allo store")
     }
 
     func testPullNoDeletionsKeepsLocal() async throws {
         // Nessuna deletion, solo delta con nuovi oggetti
         let local = Entity(id: UUID(), type: "Keep", created: .init(by: "l", at: .now))
-        store.add(local)
+        await store.add(node: local, isRemote: false)
 
         let remote = Entity(id: UUID(), type: "Remote", created: .init(by: "r", at: .now))
         backend.entitiesStore = [remote]
@@ -57,8 +59,10 @@ final class DeltaDeletionTests: XCTestCase {
         try await sync.pull()
 
         // Local rimane, remote arriva
-        XCTAssertNotNil(store.entities[local.id])
-        XCTAssertNotNil(store.entities[remote.id])
+        let keptEntity = await store.entity(id: local.id)
+        XCTAssertNotNil(keptEntity)
+        let remoteEntity = await store.entity(id: remote.id)
+        XCTAssertNotNil(remoteEntity)
     }
     
     func testPullAppliesRelationshipDeletionsBeforeUpserts() async throws {
@@ -69,8 +73,8 @@ final class DeltaDeletionTests: XCTestCase {
 
         let eA = Entity(id: aID, type: "A", created: .init(by: "l", at: .now))
         let eB = Entity(id: bID, type: "B", created: .init(by: "l", at: .now))
-        store.add(eA)
-        store.add(eB)
+        await store.add(node: eA, isRemote: false)
+        await store.add(node: eB, isRemote: false)
 
         let relLocal = Relationship(
             id: relID,
@@ -79,7 +83,7 @@ final class DeltaDeletionTests: XCTestCase {
             from: aID,
             to: bID
         )
-        store.add(relLocal)
+        await store.add(node: relLocal, isRemote: false)
 
         // Simuliamo: il backend segnala la cancellazione della relationship esistente
         backend.deletedRelationshipIDsBuffer = [relID]
@@ -99,9 +103,11 @@ final class DeltaDeletionTests: XCTestCase {
         try await sync.pull()
 
         // La relazione cancellata deve sparire
-        XCTAssertNil(store.relationships[relID], "La relationship \(relID) dovrebbe essere stata rimossa dallo store")
+        let deletedRelationship = await store.relationship(id: relID)
+        XCTAssertNil(deletedRelationship, "La relationship \(relID) dovrebbe essere stata rimossa dallo store")
 
         // La nuova relazione remota deve essere presente
-        XCTAssertEqual(store.relationships[newRelID]?.id, newRelID, "La nuova relationship remota dovrebbe essere stata aggiunta allo store")
+        let newRelationship = await store.relationship(id: newRelID)
+        XCTAssertEqual(newRelationship?.id, newRelID, "La nuova relationship remota dovrebbe essere stata aggiunta allo store")
     }
 }

@@ -21,6 +21,9 @@ final class MockRemoteBackend: RemoteSyncBackend {
     // Delta buffers (simulate one delta cycle)
     var deletedEntityIDsBuffer: [UUID] = []
     var deletedRelationshipIDsBuffer: [UUID] = []
+    
+    var deletedEntityIDs: [UUID] = []
+    var deletedRelationshipIDs: [UUID] = []
 
     init(entities: [Entity] = [], relationships: [Relationship] = []) {
         self.entitiesStore = entities
@@ -32,6 +35,16 @@ final class MockRemoteBackend: RemoteSyncBackend {
     func prepareDeltaFetch() async throws {
         // Simula l'avvio di un ciclo delta
         prepareDeltaFetchCount += 1
+
+        // Flush dei pending deletions nei buffer usati dal fetch
+        if !deletedEntityIDs.isEmpty {
+            deletedEntityIDsBuffer.append(contentsOf: deletedEntityIDs)
+            deletedEntityIDs.removeAll()
+        }
+        if !deletedRelationshipIDs.isEmpty {
+            deletedRelationshipIDsBuffer.append(contentsOf: deletedRelationshipIDs)
+            deletedRelationshipIDs.removeAll()
+        }
     }
 
     func fetchEntities() async throws -> [Entity] {

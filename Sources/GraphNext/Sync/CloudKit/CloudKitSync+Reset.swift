@@ -12,7 +12,7 @@ extension CloudKitSync {
         isSyncing = true
         defer { isSyncing = false }
 
-        store.clear()
+        await store.clear(isRemote: true)
         // Clear incremental push watermarks
         lastPushedEntityTimestamp.removeAll()
         lastPushedRelationshipTimestamp.removeAll()

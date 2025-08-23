@@ -17,7 +17,7 @@ final class AutoPushTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         persistence = CoreDataGraphPersistenceController(storeName: "GraphNext-AutoPush", inMemory: true)
-        store = GraphStore()
+        store = await GraphStore()
         backend = MockRemoteBackend()
 
         // Config con debounce molto basso per test rapidi
@@ -76,7 +76,7 @@ final class AutoPushTests: XCTestCase {
 
     func testAutoPushOnEntityAdd() async throws {
         let e = makeEntity(type: "AutoPush-1")
-        store.add(e)
+        await store.add(node: e, isRemote: false)
 
         // Attendi oltre la finestra di debounce per consentire il push
         try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
@@ -92,8 +92,8 @@ final class AutoPushTests: XCTestCase {
         let e1 = makeEntity(type: "AutoPush-2a")
         let e2 = makeEntity(type: "AutoPush-2b")
 
-        store.add(e1)
-        store.add(e2)
+        await store.add(node: e1, isRemote: false)
+        await store.add(node: e2, isRemote: false)
 
         // Attendi oltre la finestra di debounce
         try? await Task.sleep(nanoseconds: 400_000_000) // 400ms
@@ -110,15 +110,15 @@ final class AutoPushTests: XCTestCase {
         // Prepara due entity collegate
         let a = makeEntity(type: "A")
         let b = makeEntity(type: "B")
-        store.add(a)
-        store.add(b)
+        await store.add(node: a, isRemote: false)
+        await store.add(node: b, isRemote: false)
 
         // Attendi il push delle entity
         try? await Task.sleep(nanoseconds: 300_000_000)
 
         // Aggiungi una relationship e verifica il push
         let rel = makeRelationship(type: "link", from: a.id, to: b.id)
-        store.add(rel)
+        await store.add(node: rel, isRemote: false)
 
         try? await Task.sleep(nanoseconds: 300_000_000)
 
@@ -130,14 +130,14 @@ final class AutoPushTests: XCTestCase {
     func testIncrementalPushOnEntityUpdate() async throws {
         // 1) inserisci entity → primo push
         var e = makeEntity(type: "UpdateMe")
-        store.add(e)
+        await store.add(node: e, isRemote: false)
         try? await Task.sleep(nanoseconds: 300_000_000)
         XCTAssertEqual(backend.savedEntitiesBatches.count, 1, "Inserimento iniziale dovrebbe aver causato un push")
 
         // 2) aggiorna la stessa entity (updated.at più recente) → secondo push solo con quell'entity
         e.updated = .init(by: "tester", at: .now)
         e.indexed["k"] = "v"
-        store.update(e)
+        await store.update(node: e, isRemote: false)
 
         try? await Task.sleep(nanoseconds: 300_000_000)
 
@@ -151,13 +151,13 @@ final class AutoPushTests: XCTestCase {
         // Prepara due entity collegate
         let a = makeEntity(type: "A")
         let b = makeEntity(type: "B")
-        store.add(a)
-        store.add(b)
+        await store.add(node: a, isRemote: false)
+        await store.add(node: b, isRemote: false)
         try? await Task.sleep(nanoseconds: 250_000_000) // attendi push entities
 
         // 1) inserisci relationship → primo push relationships
         var rel = makeRelationship(type: "link", from: a.id, to: b.id)
-        store.add(rel)
+        await store.add(node: rel, isRemote: false)
         try? await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertEqual(
@@ -168,7 +168,7 @@ final class AutoPushTests: XCTestCase {
         // 2) aggiorna la stessa relationship (updated.at più recente) → secondo push solo con quella relationship
         rel.updated = .init(by: "tester", at: .now)
         rel.indexed["rk"] = "rv"
-        store.update(rel)
+        await store.update(node: rel, isRemote: false)
 
         try? await Task.sleep(nanoseconds: 300_000_000)
 

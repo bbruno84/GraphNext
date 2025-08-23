@@ -29,6 +29,32 @@ actor AsyncDebouncer {
     }
 }
 
+/// Forces a block to run within a max interval even if events keep arriving (deadline flush)
+actor _DeadlineFlusher {
+    private let intervalNs: UInt64
+    private var task: Task<Void, Never>?
+
+    init(seconds: Double) {
+        self.intervalNs = UInt64(seconds * 1_000_000_000)
+    }
+
+    func schedule(_ block: @escaping () async -> Void) {
+        // If a flush is already scheduled, do nothing
+        guard task == nil else { return }
+        task = Task { [intervalNs] in
+            try? await Task.sleep(nanoseconds: intervalNs)
+            guard !Task.isCancelled else { return }
+            await block()
+            task = nil
+        }
+    }
+
+    func cancel() {
+        task?.cancel()
+        task = nil
+    }
+}
+
 public final class CloudKitSync: GraphSyncEngine {
     internal let persistence: GraphPersistenceController
     internal let store: GraphStore
@@ -46,6 +72,10 @@ public final class CloudKitSync: GraphSyncEngine {
     // Config conservata per debug/telemetria o subscribeOnInit
     public let configuration: CloudKitSyncConfig
 
+    private let deadlineFlusher: _DeadlineFlusher
+    private let pushBatchSize: Int
+    private let pushMaxIntervalSeconds: Double
+
     /// Iniezione standard: CKSyncEngineBackend costruito da config.
     @MainActor
     public init(
@@ -60,6 +90,9 @@ public final class CloudKitSync: GraphSyncEngine {
         self.pullDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
         self.syncDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
         self.pushDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
+        self.deadlineFlusher = _DeadlineFlusher(seconds: configuration.pushMaxIntervalSeconds)
+        self.pushBatchSize = configuration.pushBatchSize
+        self.pushMaxIntervalSeconds = configuration.pushMaxIntervalSeconds
 
         // Costruzione del backend reale basato su CKSyncEngine e sulla zone configurata.
         let zoneID = CKRecordZone.ID(zoneName: configuration.zoneName)
@@ -92,6 +125,9 @@ public final class CloudKitSync: GraphSyncEngine {
         self.pullDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
         self.syncDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
         self.pushDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
+        self.deadlineFlusher = _DeadlineFlusher(seconds: configuration.pushMaxIntervalSeconds)
+        self.pushBatchSize = configuration.pushBatchSize
+        self.pushMaxIntervalSeconds = configuration.pushMaxIntervalSeconds
         self.backend = backend
         startObservingStore()
     }
@@ -193,8 +229,8 @@ extension CloudKitSync {
         defer { isSyncing = false }
 
         // 1) Snapshot current nodes from the store
-        let allEntities = store.allEntities()
-        let allRelationships = store.allRelationships()
+        let allEntities = await store.allEntities()
+        let allRelationships = await store.allRelationships()
 
         // 2) Filter only nodes changed since last successful push
         let entitiesToPush = allEntities.filter { e in
@@ -211,34 +247,51 @@ extension CloudKitSync {
         // 3) If nothing to push, exit early
         if entitiesToPush.isEmpty, relationshipsToPush.isEmpty { return }
 
-        // 4) Push incrementally (wrapped in retry/backoff)
+        // 4) Push incrementally in batches (wrapped in retry/backoff)
+        func chunks<T>(_ array: [T], size: Int) -> [[T]] {
+            guard size > 0, array.count > size else { return array.isEmpty ? [] : [array] }
+            var result: [[T]] = []
+            var idx = 0
+            while idx < array.count {
+                let end = min(idx + size, array.count)
+                result.append(Array(array[idx..<end]))
+                idx = end
+            }
+            return result
+        }
+
         try await withRetry {
-            if !entitiesToPush.isEmpty {
-                try await self.backend.save(entities: entitiesToPush)
-                for e in entitiesToPush {
+            // Entities in batches
+            for batch in chunks(entitiesToPush, size: self.pushBatchSize) {
+                try await self.backend.save(entities: batch)
+                for e in batch {
                     self.lastPushedEntityTimestamp[e.id] = self.lastModifiedDate(of: e)
                 }
             }
-            if !relationshipsToPush.isEmpty {
-                try await self.backend.save(relationships: relationshipsToPush)
-                for r in relationshipsToPush {
+            // Relationships in batches
+            for batch in chunks(relationshipsToPush, size: self.pushBatchSize) {
+                try await self.backend.save(relationships: batch)
+                for r in batch {
                     self.lastPushedRelationshipTimestamp[r.id] = self.lastModifiedDate(of: r)
                 }
             }
         }
     }
     
-    private func startObservingStore() {
-        // Nota: osserviamo entrambe le pubblicazioni. In futuro si può filtrare più finemente.
-        store.$entities
-            .sink { [weak self] _ in
-                self?.triggerLocalPushDebounced()
-            }
-            .store(in: &cancellables)
+    @MainActor private func startObservingStore() {
+        store.changeFeed
+            .sink { [weak self] change in
+                guard let self = self else { return }
 
-        store.$relationships
-            .sink { [weak self] _ in
-                self?.triggerLocalPushDebounced()
+                // Ignora modifiche remote per evitare loop
+                switch change {
+                case .insert(_, let isRemote),
+                     .update(_, let isRemote),
+                     .remove(_, let isRemote):
+                    if !isRemote {
+                        self.triggerLocalPushDebounced()
+                    }
+                }
             }
             .store(in: &cancellables)
     }
@@ -252,6 +305,17 @@ extension CloudKitSync {
                     _ = try await self.withRetry { try await self.push() }
                 } catch {
                     // opzionale: log
+                }
+            }
+        }
+        // Deadline: guarantee a push within the max interval even under continuous changes
+        Task { [weak weakSelf] in
+            await weakSelf?.deadlineFlusher.schedule { [weak weakSelf] in
+                guard let self = weakSelf else { return }
+                do {
+                    _ = try await self.withRetry { try await self.push() }
+                } catch {
+                    // optionally log
                 }
             }
         }

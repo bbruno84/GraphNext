@@ -112,5 +112,47 @@ final class GraphPersistenceControllerTests: XCTestCase {
         let deleted = try sut.loadNode(id: entity.id)
         XCTAssertNil(deleted)
     }
+    
+    // MARK: - Test Cascade Delete
+
+    func testDeleteEntityAndAttachedRelationships_removesBoth() async throws {
+        // Arrange
+        let entity1 = Entity(id: UUID(), type: "A", created: .init(by: "test"))
+        let entity2 = Entity(id: UUID(), type: "B", created: .init(by: "test"))
+
+        let relationship = Relationship(
+            id: UUID(),
+            type: "rel",
+            tag: [],
+            group: [],
+            indexed: [:],
+            created: .init(by: "test"),
+            updated: nil,
+            version: nil,
+            sharedWith: [],
+            permissions: nil,
+            payload: nil,
+            from: entity1.id,
+            to: entity2.id
+        )
+
+        try sut.save(node: entity1)
+        try sut.save(node: entity2)
+        try sut.save(node: relationship)
+
+        // Precondizione
+        XCTAssertNotNil(try sut.loadNode(id: entity1.id))
+        XCTAssertEqual(try sut.loadRelationships(from: entity1.id).count, 1)
+
+        // Act
+        try await sut.deleteEntityAndAttachedRelationships(id: entity1.id)
+
+        // Assert
+        XCTAssertNil(try sut.loadNode(id: entity1.id))
+        XCTAssertEqual(try sut.loadRelationships(from: entity1.id).count, 0)
+        XCTAssertNotNil(try sut.loadNode(id: entity2.id)) // entity2 deve rimanere
+    }
+
 }
+
 

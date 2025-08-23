@@ -7,6 +7,7 @@
 import Foundation
 
 extension CloudKitSync {
+    @MainActor
     public func pull() async throws {
         isSyncing = true
         defer { isSyncing = false }
@@ -17,21 +18,19 @@ extension CloudKitSync {
         let deletedEntityIDs = try await backend.fetchDeletedEntityIDs()
         let deletedRelationshipIDs = try await backend.fetchDeletedRelationshipIDs()
 
-        for id in deletedEntityIDs {
-            // Rimuovi l'entity dallo store se presente
-            // (metodo di store previsto: removeEntity(_:))
-            store.removeNode(id: id)
-        }
+        // Prima rimuovi le relationship per evitare referenze pendenti
         for id in deletedRelationshipIDs {
-            // Rimuovi la relationship dallo store se presente
-            // (metodo di store previsto: removeRelationship(_:))
-            store.removeNode(id: id)
+            store.remove(id: id, isRemote: true)
+        }
+        // Poi rimuovi le entity
+        for id in deletedEntityIDs {
+            store.remove(id: id, isRemote: true)
         }
 
         let entities = try await backend.fetchEntities()
         let relationships = try await backend.fetchRelationships()
 
-        for e in entities { store.add(e) }
-        for r in relationships { store.add(r) }
+        for e in entities { store.add(node: e, isRemote: true) }
+        for r in relationships { store.add(node: r, isRemote: true) }
     }
 }

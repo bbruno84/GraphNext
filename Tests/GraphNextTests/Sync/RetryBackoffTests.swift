@@ -17,7 +17,7 @@ final class RetryBackoffTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         persistence = CoreDataGraphPersistenceController(storeName: "GraphNext-RetryBackoff", inMemory: true)
-        store = GraphStore()
+        store = await GraphStore()
     }
 
     func testPullRetrySucceedsOnThirdAttempt() async throws {

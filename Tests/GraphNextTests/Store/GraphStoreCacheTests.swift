@@ -10,20 +10,20 @@ import XCTest
 
 final class GraphStoreCacheTests: XCTestCase {
     
-    func testCacheStoresEntities() {
-        let store = GraphStore(useNSCache: true)
+    func testCacheStoresEntities() async {
+        let store = await GraphStore(useNSCache: true)
         let entity = Entity(
             id: UUID(),
             type: "CacheTest",
             created: AuditInfo(by: "test")
         )
-        store.add(entity)
-        let cached = store.entity(id: entity.id)
+        await store.add(node: entity, isRemote: false)
+        let cached = await store.entity(id: entity.id)
         XCTAssertEqual(cached?.id, entity.id)
     }
     
-    func testCacheStoresRelationships() {
-        let store = GraphStore(useNSCache: true)
+    func testCacheStoresRelationships() async {
+        let store = await GraphStore(useNSCache: true)
         let e1 = Entity(
             id: UUID(),
             type: "A",
@@ -41,25 +41,27 @@ final class GraphStoreCacheTests: XCTestCase {
             from: e1.id,
             to: e2.id
         )
-        store.add(e1)
-        store.add(e2)
-        store.add(rel)
-        let cached = store.relationship(id: rel.id)
+        await store.add(node: e1, isRemote: false)
+        await store.add(node: e2, isRemote: false)
+        await store.add(node: rel, isRemote: false)
+        let cached = await store.relationship(id: rel.id)
         XCTAssertEqual(cached?.id, rel.id)
     }
     
-    func testCacheInvalidationOnRemove() {
-        let store = GraphStore(useNSCache: true)
+    func testCacheInvalidationOnRemove() async {
+        let store = await GraphStore(useNSCache: true)
         let entity = Entity(
             id: UUID(),
             type: "InvalidationTest",
             created: AuditInfo(by: "test")
         )
-        store.add(entity)
-        XCTAssertNotNil(store.entity(id: entity.id))
-        store.removeNode(id: entity.id)
-        XCTAssertNil(store.entity(id: entity.id))
+        await store.add(node: entity, isRemote: false)
+        let before = await store.entity(id: entity.id)
+        XCTAssertNotNil(before)
+
+        await store.remove(id: entity.id, isRemote: false)
+
+        let after = await store.entity(id: entity.id)
+        XCTAssertNil(after)
     }
 }
-
-

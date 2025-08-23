@@ -17,6 +17,10 @@ public struct CloudKitSyncConfig: Codable, Equatable {
     public var stateStore: StateStore
     /// Abilita la sottoscrizione automatica a modifiche remote.
     public var subscribeOnInit: Bool
+    /// Numero massimo di record inviati in un singolo batch di push. Default: 100
+    public var pushBatchSize: Int
+    /// Intervallo massimo (secondi) entro cui forzare un push anche in presenza di cambi continui (deadline flush). Default: 3.0s
+    public var pushMaxIntervalSeconds: Double
     /// Identificativo della subscription CloudKit (usato per le push). Default: "GraphNextSyncSubscription"
     public var subscriptionID: String
     /// Finestra di debounce (ms) per coalescere più trigger di pull ravvicinati. Default: 750
@@ -34,7 +38,9 @@ public struct CloudKitSyncConfig: Codable, Equatable {
         subscriptionID: String = "GraphNextSyncSubscription",
         debounceMilliseconds: Int = 750,
         retryMaxAttempts: Int = 3,
-        retryBaseDelaySeconds: Double = 0.5
+        retryBaseDelaySeconds: Double = 0.5,
+        pushBatchSize: Int = 100,
+        pushMaxIntervalSeconds: Double = 3.0
     ) {
         self.containerIdentifier = containerIdentifier
         self.zoneName = zoneName
@@ -44,6 +50,8 @@ public struct CloudKitSyncConfig: Codable, Equatable {
         self.debounceMilliseconds = debounceMilliseconds
         self.retryMaxAttempts = retryMaxAttempts
         self.retryBaseDelaySeconds = retryBaseDelaySeconds
+        self.pushBatchSize = max(1, pushBatchSize)
+        self.pushMaxIntervalSeconds = max(0.1, pushMaxIntervalSeconds)
     }
 
     /// Dove CKSyncEngine salva il proprio stato (change tokens).

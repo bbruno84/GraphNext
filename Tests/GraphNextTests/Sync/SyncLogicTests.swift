@@ -18,7 +18,7 @@ final class SyncLogicTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         persistence = CoreDataGraphPersistenceController(storeName: "GraphNext", inMemory: true)
-        store = GraphStore()
+        store = await GraphStore()
         backend = MockRemoteBackend()
         sync = await CloudKitSync(persistence: persistence, store: store, backend: backend)
     }
@@ -28,12 +28,13 @@ final class SyncLogicTests: XCTestCase {
         backend.entitiesStore = [remote]
 
         try await sync.pull()
-        XCTAssertNotNil(store.entities[remote.id])
+        let result = await store.entity(id: remote.id)
+        XCTAssertNotNil(result)
     }
 
     func testPushSendsLocalEntitiesToBackend() async throws {
         let e = Entity(id: UUID(), type: "Local", created: .init(by: "l", at: .now))
-        store.add(e)
+        await store.add(node: e, isRemote: false)
 
         try await sync.push()
 
@@ -44,7 +45,7 @@ final class SyncLogicTests: XCTestCase {
 
     func testSyncCallsPullThenPush() async throws {
         let local = Entity(id: UUID(), type: "Local", created: .init(by: "l", at: .now))
-        store.add(local)
+        await store.add(node: local, isRemote: false)
 
         try await sync.sync()
 

@@ -17,7 +17,7 @@ final class PullFlowTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         persistence = CoreDataGraphPersistenceController(storeName: "GraphNext-Pull", inMemory: true)
-        store = GraphStore()
+        store = await GraphStore()
         backend = MockRemoteBackend()
 
         let config = CloudKitSyncConfig(
@@ -81,26 +81,33 @@ final class PullFlowTests: XCTestCase {
         backend.relationshipsStore = [r]
 
         // Store vuoto all'inizio
-        XCTAssertTrue(store.entities.isEmpty)
-        XCTAssertTrue(store.relationships.isEmpty)
+        let emptyEntities = await store.allEntities()
+        XCTAssertTrue(emptyEntities.isEmpty)
+        let emptyRelationships = await store.allRelationships()
+        XCTAssertTrue(emptyRelationships.isEmpty)
 
         try await sync.pull()
 
         // Dopo il pull, lo store deve riflettere i dati remoti
-        XCTAssertEqual(store.entities.count, 2)
-        XCTAssertNotNil(store.entities[e1.id])
-        XCTAssertNotNil(store.entities[e2.id])
+        let allEntities = await store.allEntities()
+        XCTAssertEqual(allEntities.count, 2)
+        let entity1 = await store.entity(id: e1.id)
+        XCTAssertNotNil(entity1)
+        let entity2 = await store.entity(id: e2.id)
+        XCTAssertNotNil(entity2)
 
-        XCTAssertEqual(store.relationships.count, 1)
-        XCTAssertNotNil(store.relationships[r.id])
-        XCTAssertEqual(store.relationships[r.id]?.from, e1.id)
-        XCTAssertEqual(store.relationships[r.id]?.to, e2.id)
+        let allRelationships = await store.allRelationships()
+        XCTAssertEqual(allRelationships.count, 1)
+        let rel = await store.relationship(id: r.id)
+        XCTAssertNotNil(rel)
+        XCTAssertEqual(rel?.from, e1.id)
+        XCTAssertEqual(rel?.to, e2.id)
     }
 
     func testPullAppliesRemoteWinsOverLocal() async throws {
         // Local entity con dati iniziali
         var local = makeEntity(type: "Local")
-        store.add(local)
+        await store.add(node: local, isRemote: false)
 
         // Remoto con stesso id ma dati "più nuovi" (updated più recente)
         var remote = local
@@ -109,13 +116,16 @@ final class PullFlowTests: XCTestCase {
         backend.entitiesStore = [remote]
 
         // Prima del pull, lo store ha la versione locale
-        XCTAssertEqual(store.entities[local.id]?.type, "Local")
+        let prePullEntity = await store.entity(id: local.id)
+        XCTAssertEqual(prePullEntity?.type, "Local")
 
         try await sync.pull()
 
         // Dopo il pull, deve prevalere il remoto (remote-wins)
-        XCTAssertEqual(store.entities[local.id]?.type, "RemoteNewType")
-        XCTAssertEqual(store.entities.count, 1)
+        let postPullEntity = await store.entity(id: local.id)
+        XCTAssertEqual(postPullEntity?.type, "RemoteNewType")
+        let finalEntities = await store.allEntities()
+        XCTAssertEqual(finalEntities.count, 1)
     }
     
     func testPullIsIdempotentWhenNoChanges() async throws {
@@ -128,20 +138,22 @@ final class PullFlowTests: XCTestCase {
 
         // Primo pull
         try await sync.pull()
-        XCTAssertEqual(store.entities.count, 2)
-        XCTAssertEqual(store.relationships.count, 1)
+        let firstEntities = await store.allEntities()
+        XCTAssertEqual(firstEntities.count, 2)
+        let firstRelationships = await store.allRelationships()
+        XCTAssertEqual(firstRelationships.count, 1)
 
         // Snapshot dopo il primo pull
-        let entitiesSnapshot = store.entities
-        let relationshipsSnapshot = store.relationships
+        let entitiesSnapshot = await store.allEntities()
+        let relationshipsSnapshot = await store.allRelationships()
 
         // Secondo pull senza alcuna modifica remota
         try await sync.pull()
 
         // Idempotenza: lo store non deve cambiare
-        XCTAssertEqual(store.entities.count, 2)
-        XCTAssertEqual(store.relationships.count, 1)
-        XCTAssertEqual(store.entities, entitiesSnapshot)
-        XCTAssertEqual(store.relationships, relationshipsSnapshot)
+        let secondEntities = await store.allEntities()
+        XCTAssertEqual(secondEntities, entitiesSnapshot)
+        let secondRelationships = await store.allRelationships()
+        XCTAssertEqual(secondRelationships, relationshipsSnapshot)
     }
 }

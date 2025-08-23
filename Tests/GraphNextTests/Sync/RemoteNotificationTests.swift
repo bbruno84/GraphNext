@@ -17,7 +17,7 @@ final class RemoteNotificationTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         persistence = CoreDataGraphPersistenceController(storeName: "GraphNext-RemoteNotif", inMemory: true)
-        store = GraphStore()
+        store = await GraphStore()
         backend = MockRemoteBackend()
 
         // Debounce breve per test rapidi
@@ -56,7 +56,9 @@ final class RemoteNotificationTests: XCTestCase {
         try? await Task.sleep(nanoseconds: 300_000_000)
 
         // Lo store deve essere popolato dal remoto
-        XCTAssertEqual(store.entities.count, 1)
-        XCTAssertNotNil(store.entities[e.id])
+        let entity = await store.entity(id: e.id)
+        XCTAssertNotNil(entity)
+        let all = await store.entities(ofType: nil)
+        XCTAssertEqual(all.count, 1)
     }
 }

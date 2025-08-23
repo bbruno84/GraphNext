@@ -6,6 +6,7 @@
 //
 import Foundation
 
+@MainActor
 public protocol GraphStoreSyncAdapter {
     func allEntities() -> [Entity]
     func allRelationships() -> [Relationship]
@@ -13,12 +14,10 @@ public protocol GraphStoreSyncAdapter {
 
 extension GraphStore: GraphStoreSyncAdapter {
     public func allEntities() -> [Entity] {
-        return Array(entities.values)
+        return entities(ofType: nil)
     }
 
     public func allRelationships() -> [Relationship] {
-        return Array(relationships.values)
+        return relationships.values.compactMap { $0 }
     }
 }
-
-

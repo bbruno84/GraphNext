@@ -17,7 +17,7 @@ final class ResetFlowTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         persistence = CoreDataGraphPersistenceController(storeName: "GraphNext-Reset", inMemory: true)
-        store = GraphStore()
+        store = await GraphStore()
         backend = MockRemoteBackend()
 
         let config = CloudKitSyncConfig(
@@ -47,9 +47,10 @@ final class ResetFlowTests: XCTestCase {
         // 1) Popola store locale
         let localA = makeEntity("Local-A")
         let localB = makeEntity("Local-B")
-        store.add(localA)
-        store.add(localB)
-        XCTAssertEqual(store.entities.count, 2)
+        await store.add(node: localA, isRemote: false)
+        await store.add(node: localB, isRemote: false)
+        let allBefore = await store.entities(ofType: nil)
+        XCTAssertEqual(allBefore.count, 2)
 
         // 2) Prepara dati remoti
         let remote1 = makeEntity("Remote-1")
@@ -60,10 +61,18 @@ final class ResetFlowTests: XCTestCase {
         try await sync.reset()
 
         // 4) Lo store deve riflettere i dati remoti (locali spariti)
-        XCTAssertEqual(store.entities.count, 2)
-        XCTAssertNotNil(store.entities[remote1.id])
-        XCTAssertNotNil(store.entities[remote2.id])
-        XCTAssertNil(store.entities[localA.id])
-        XCTAssertNil(store.entities[localB.id])
+        let allAfter = await store.entities(ofType: nil)
+        XCTAssertEqual(allAfter.count, 2)
+        let remote1Entity = await store.entity(id: remote1.id)
+        XCTAssertNotNil(remote1Entity)
+
+        let remote2Entity = await store.entity(id: remote2.id)
+        XCTAssertNotNil(remote2Entity)
+
+        let localAEntity = await store.entity(id: localA.id)
+        XCTAssertNil(localAEntity)
+
+        let localBEntity = await store.entity(id: localB.id)
+        XCTAssertNil(localBEntity)
     }
 }

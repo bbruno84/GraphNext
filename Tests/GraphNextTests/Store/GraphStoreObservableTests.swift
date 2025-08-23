@@ -14,8 +14,8 @@ final class GraphStoreObservableTests: XCTestCase {
     var store: GraphStore!
     var cancellables: Set<AnyCancellable> = []
     
-    override func setUp() {
-        store = GraphStore(useNSCache: true)
+    override func setUp() async throws {
+        store = await GraphStore(useNSCache: true)
         cancellables = []
     }
     
@@ -24,10 +24,10 @@ final class GraphStoreObservableTests: XCTestCase {
         cancellables.removeAll()
     }
     
-    func testObjectWillChangeIsCalledOnAdd() {
+    func testObjectWillChangeIsCalledOnAdd() async {
         let expectation = XCTestExpectation(description: "objectWillChange published")
         
-        store.objectWillChange
+        await store.objectWillChange
             .sink {
                 expectation.fulfill()
             }
@@ -38,28 +38,27 @@ final class GraphStoreObservableTests: XCTestCase {
             type: "Car",
             created: AuditInfo(by: "test")
         )
-        store.add(entity)
-        wait(for: [expectation], timeout: 1)
+        await store.add(node: entity, isRemote: false)
+        await fulfillment(of: [expectation], timeout: 1)
     }
     
-    func testObjectWillChangeIsCalledOnRemove() {
+    func testObjectWillChangeIsCalledOnRemove() async {
         let entity = Entity(
             id: UUID(),
             type: "Car",
             created: AuditInfo(by: "test")
         )
-        store.add(entity)
+        await store.add(node: entity, isRemote: false)
         
         let expectation = XCTestExpectation(description: "objectWillChange published on remove")
         
-        store.objectWillChange
+        await store.objectWillChange
             .sink {
                 expectation.fulfill()
             }
             .store(in: &cancellables)
         
-        store.removeNode(id: entity.id)
-        wait(for: [expectation], timeout: 1)
+        await store.remove(id: entity.id, isRemote: false)
+        await fulfillment(of: [expectation], timeout: 1)
     }
 }
-
