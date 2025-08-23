@@ -10,7 +10,7 @@ import GRDB
 
 public final class GRDBGraphPersistenceController: GraphPersistenceController {
     
-    private let dbQueue: DatabaseQueue
+    internal let dbQueue: DatabaseQueue
 
     public init(path: String, inMemory: Bool = false) throws {
         if inMemory {
@@ -30,10 +30,11 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
         try await dbQueue.write { db in
             let encodedTags = try self.encodeJSON(Array(entity.tag))
             let encodedGroup = try self.encodeJSON(Array(entity.group))
+            let encodedSharedWith = try self.encodeJSON(Array(entity.sharedWith))
             try db.execute(
                 sql: """
-                INSERT OR REPLACE INTO entities (id, type, groupName, tags, payload, createdAt, createdBy, updatedAt, updatedBy)
-                VALUES (:id, :type, :groupName, :tags, :payload, :createdAt, :createdBy, :updatedAt, :updatedBy)
+                INSERT OR REPLACE INTO entities (id, type, groupName, tags, payload, createdAt, createdBy, updatedAt, updatedBy, sharedWith)
+                VALUES (:id, :type, :groupName, :tags, :payload, :createdAt, :createdBy, :updatedAt, :updatedBy, :sharedWith)
                 """,
                 arguments: [
                     "id": entity.id.uuidString,
@@ -44,7 +45,8 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
                     "createdAt": entity.created.at.timeIntervalSince1970,
                     "createdBy": entity.created.by,
                     "updatedAt": entity.updated?.at.timeIntervalSince1970,
-                    "updatedBy": entity.updated?.by
+                    "updatedBy": entity.updated?.by,
+                    "sharedWith": encodedSharedWith
                 ]
             )
         }
@@ -69,8 +71,36 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
     }
 
     public func saveEntities(_ entities: [Entity]) async throws {
-        for entity in entities {
-            try await saveEntity(entity)
+        try await dbQueue.write { db in
+            for entity in entities {
+                do {
+                    let encodedTags = try self.encodeJSON(Array(entity.tag))
+                    let encodedGroup = try self.encodeJSON(Array(entity.group))
+                    let encodedPayload = try self.encodeJSON(entity.payload)
+                    let encodedSharedWith = try self.encodeJSON(Array(entity.sharedWith))
+
+                    try db.execute(
+                        sql: """
+                        INSERT OR REPLACE INTO entities (id, type, groupName, tags, payload, createdAt, createdBy, updatedAt, updatedBy, sharedWith)
+                        VALUES (:id, :type, :groupName, :tags, :payload, :createdAt, :createdBy, :updatedAt, :updatedBy, :sharedWith)
+                        """,
+                        arguments: [
+                            "id": entity.id.uuidString,
+                            "type": entity.type,
+                            "groupName": encodedGroup,
+                            "tags": encodedTags,
+                            "payload": encodedPayload,
+                            "createdAt": entity.created.at.timeIntervalSince1970,
+                            "createdBy": entity.created.by,
+                            "updatedAt": entity.updated?.at.timeIntervalSince1970,
+                            "updatedBy": entity.updated?.by,
+                            "sharedWith": encodedSharedWith
+                        ]
+                    )
+                } catch {
+                    throw error
+                }
+            }
         }
     }
 
@@ -83,11 +113,12 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
     // MARK: - Relationship
 
     public func saveRelationship(_ relationship: Relationship) async throws {
+        
         try await dbQueue.write { db in
             try db.execute(
                 sql: """
-                INSERT OR REPLACE INTO relationships (id, type, fromId, toId, payload, createdAt, createdBy, updatedAt, updatedBy)
-                VALUES (:id, :type, :fromId, :toId, :payload, :createdAt, :createdBy, :updatedAt, :updatedBy)
+                INSERT OR REPLACE INTO relationships (id, type, fromId, toId, payload, createdAt, createdBy, updatedAt, updatedBy, tags, groupName, sharedWith, permissions)
+                VALUES (:id, :type, :fromId, :toId, :payload, :createdAt, :createdBy, :updatedAt, :updatedBy, :tags, :groupName, :sharedWith, :permissions)
                 """,
                 arguments: [
                     "id": relationship.id.uuidString,
@@ -98,7 +129,11 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
                     "createdAt": relationship.created.at.timeIntervalSince1970,
                     "createdBy": relationship.created.by,
                     "updatedAt": relationship.updated?.at.timeIntervalSince1970,
-                    "updatedBy": relationship.updated?.by
+                    "updatedBy": relationship.updated?.by,
+                    "tags": try self.encodeJSON(Array(relationship.tag)),
+                    "groupName": try self.encodeJSON(Array(relationship.group)),
+                    "sharedWith": try self.encodeJSON(Array(relationship.sharedWith)),
+                    "permissions": try self.encodeJSON(relationship.permissions)
                 ]
             )
         }
@@ -153,6 +188,8 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
             try db.execute(sql: "DELETE FROM entities")
         }
     }
+    
+
 
     // MARK: - Helpers
 
@@ -162,7 +199,7 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
         return String(data: data, encoding: .utf8)
     }
 
-    private func decodeEntity(from row: Row) throws -> Entity {
+    internal func decodeEntity(from row: Row) throws -> Entity {
         return Entity(
             id: UUID(uuidString: row["id"])!,
             type: row["type"],
@@ -171,22 +208,24 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
             created: decodeAudit(from: row, prefix: "created")!,
             updated: decodeAudit(from: row, prefix: "updated"),
             version: nil,
-            sharedWith: [],
+            sharedWith: try decodeJSON(from: row["sharedWith"]) ?? [],
             permissions: nil,
             payload: try decodeJSON(from: row["payload"])
         )
     }
 
-    private func decodeRelationship(from row: Row) throws -> Relationship {
+    internal func decodeRelationship(from row: Row) throws -> Relationship {
         return Relationship(
             id: UUID(uuidString: row["id"])!,
             type: row["type"],
+            tag: try decodeJSON(from: row["tags"]) ?? [],
+            group: try decodeJSON(from: row["groupName"]) ?? [],
             created: decodeAudit(from: row, prefix: "created")!,
             updated: decodeAudit(from: row, prefix: "updated"),
+            sharedWith: try decodeJSON(from: row["sharedWith"]) ?? [],
+            permissions: try decodeJSON(from: row["permissions"]),
             payload: try decodeJSON(from: row["payload"]),
-            // force-cast safe: 'fromId' is NOT NULL in schema
             from: UUID(uuidString: row["fromId"] as! String),
-            // force-cast safe: 'toId' is NOT NULL in schema
             to: UUID(uuidString: row["toId"] as! String)
         )
     }

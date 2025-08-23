@@ -38,4 +38,8 @@ public protocol GraphPersistenceController: AnyObject {
     // MARK: - Reset
     
     func reset() async throws
+    
+    // MARK: - Query
+    func queryEntities(matching type: String?) async throws -> [Entity]
+    func queryRelationships(matching type: String?) async throws -> [Relationship]
 }

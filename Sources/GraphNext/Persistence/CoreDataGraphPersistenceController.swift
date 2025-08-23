@@ -339,4 +339,28 @@ extension CoreDataGraphPersistenceController: GraphPersistenceController {
     public func reset() async throws {
         throw NSError(domain: "GraphNext.CoreData", code: -1, userInfo: [NSLocalizedDescriptionKey: "Reset non implementato in CoreDataGraphPersistenceController"])
     }
+
+    public func queryEntities(matching type: String?) async throws -> [Entity] {
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                let nodes = try allNodes(ofType: type ?? "")
+                let entities = nodes.compactMap { $0 as? Entity }
+                continuation.resume(returning: entities)
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    public func queryRelationships(matching type: String?) async throws -> [Relationship] {
+        try await withCheckedThrowingContinuation { continuation in
+            do {
+                let nodes = try allNodes(ofType: type ?? "")
+                let relationships = nodes.compactMap { $0 as? Relationship }
+                continuation.resume(returning: relationships)
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
 }

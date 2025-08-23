@@ -136,7 +136,7 @@ final class AutoPushTests: XCTestCase {
 
         // 2) aggiorna la stessa entity (updated.at più recente) → secondo push solo con quell'entity
         e.updated = .init(by: "tester", at: .now)
-        e.indexed["k"] = "v"
+        e.payload = ["note": .string("updated")]
         await store.update(node: e, isRemote: false)
 
         try? await Task.sleep(nanoseconds: 300_000_000)

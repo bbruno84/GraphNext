@@ -7,50 +7,52 @@
 
 import XCTest
 import GraphNext
+import GRDB
 
 final class GraphPersistenceControllerTests: XCTestCase {
-    var sut: CoreDataGraphPersistenceController!
+    var sut: GraphPersistenceController!
 
-    override func setUp() {
-        super.setUp()
-        sut = CoreDataGraphPersistenceController(storeName: "GraphNext", inMemory: true)
-    }
+    override func setUp() async throws {
+            try await super.setUp()
+        sut = try GRDBGraphPersistenceController(path: "TestDB", inMemory: true)
+        }
 
-    override func tearDown() {
-        sut = nil
-        super.tearDown()
-    }
+        override func tearDown() async throws {
+            sut = nil
+            try await super.tearDown()
+        }
+
 
     // MARK: - Test Entity CRUD
 
-    func testSaveAndLoadEntity() throws {
-        let entity = Entity(
-            id: UUID(),
-            type: "TestEntity",
-            tag: ["tag1"],
-            group: ["group1"],
-            created: .init(by: "tester", at: .now),
-            updated: nil,
-            version: 1,
-            sharedWith: ["user1"],
-            permissions: Permissions(users: ["user1": .read]),
-            payload: ["test": .string("ok")]
-        )
+func testSaveAndLoadEntity() async throws {
+    let entity = Entity(
+        id: UUID(),
+        type: "TestEntity",
+        tag: ["tag1"],
+        group: ["group1"],
+        created: .init(by: "tester", at: .now),
+        updated: nil,
+        version: 1,
+        sharedWith: ["user1"],
+        permissions: Permissions(users: ["user1": .read]),
+        payload: ["test": .string("ok")]
+    )
 
-        try sut.save(node: entity)
+    try await sut.saveEntity(entity)
 
-        let loaded = try sut.loadNode(id: entity.id) as? Entity
-        XCTAssertNotNil(loaded)
-        XCTAssertEqual(loaded?.id, entity.id)
-        XCTAssertEqual(loaded?.type, "TestEntity")
-        XCTAssertEqual(loaded?.tag, ["tag1"])
-        XCTAssertEqual(loaded?.group, ["group1"])
-        XCTAssertEqual(loaded?.sharedWith, ["user1"])
-    }
+    let loaded = try await sut.entity(id: entity.id)
+    XCTAssertNotNil(loaded)
+    XCTAssertEqual(loaded?.id, entity.id)
+    XCTAssertEqual(loaded?.type, "TestEntity")
+    XCTAssertEqual(loaded?.tag ?? [], ["tag1"])
+    XCTAssertEqual(loaded?.group ?? [], ["group1"])
+    XCTAssertEqual(loaded?.sharedWith ?? [], ["user1"])
+}
 
     // MARK: - Test Relationship CRUD
 
-    func testSaveAndLoadRelationship() throws {
+    func testSaveAndLoadRelationship() async throws {
         let fromID = UUID()
         let toID = UUID()
 
@@ -69,22 +71,22 @@ final class GraphPersistenceControllerTests: XCTestCase {
             to: toID
         )
 
-        try sut.save(node: relationship)
+        try await sut.saveRelationship(relationship)
 
-        let loaded = try sut.loadNode(id: relationship.id) as? Relationship
+        let loaded = try await sut.relationship(id: relationship.id)
         XCTAssertNotNil(loaded)
         XCTAssertEqual(loaded?.id, relationship.id)
         XCTAssertEqual(loaded?.type, "TestRelationship")
         XCTAssertEqual(loaded?.from, fromID)
         XCTAssertEqual(loaded?.to, toID)
-        XCTAssertEqual(loaded?.tag, ["tag2"])
-        XCTAssertEqual(loaded?.group, ["group2"])
-        XCTAssertEqual(loaded?.sharedWith, ["user2"])
+        XCTAssertEqual(loaded?.tag ?? [], ["tag2"])
+        XCTAssertEqual(loaded?.group ?? [], ["group2"])
+        XCTAssertEqual(loaded?.sharedWith ?? [], ["user2"])
     }
 
     // MARK: - Test Delete
 
-    func testDeleteRemovesNode() throws {
+    func testDeleteRemovesNode() async throws {
         let entity = Entity(
             id: UUID(),
             type: "ToDelete",
@@ -98,13 +100,14 @@ final class GraphPersistenceControllerTests: XCTestCase {
             payload: nil
         )
 
-        try sut.save(node: entity)
+        try await sut.saveEntity(entity)
 
-        XCTAssertNotNil(try sut.loadNode(id: entity.id))
+        let found = try await sut.entity(id: entity.id)
+        XCTAssertNotNil(found)
 
-        try sut.deleteNode(id: entity.id)
+        try await sut.deleteEntity(id: entity.id)
 
-        let deleted = try sut.loadNode(id: entity.id)
+        let deleted = try await sut.entity(id: entity.id)
         XCTAssertNil(deleted)
     }
     
@@ -130,21 +133,71 @@ final class GraphPersistenceControllerTests: XCTestCase {
             to: entity2.id
         )
 
-        try sut.save(node: entity1)
-        try sut.save(node: entity2)
-        try sut.save(node: relationship)
+        try await sut.saveEntity(entity1)
+        try await sut.saveEntity(entity2)
+        try await sut.saveRelationship(relationship)
 
         // Precondizione
-        XCTAssertNotNil(try sut.loadNode(id: entity1.id))
-        XCTAssertEqual(try sut.loadRelationships(from: entity1.id).count, 1)
+        let loadedEntity = try await sut.entity(id: entity1.id)
+        XCTAssertNotNil(loadedEntity)
+        let relsBefore = try await sut.queryRelationships(matching: nil).filter { $0.from == entity1.id }
+        XCTAssertEqual(relsBefore.count, 1)
 
         // Act
         try await sut.deleteEntityAndAttachedRelationships(id: entity1.id)
 
         // Assert
-        XCTAssertNil(try sut.loadNode(id: entity1.id))
-        XCTAssertEqual(try sut.loadRelationships(from: entity1.id).count, 0)
-        XCTAssertNotNil(try sut.loadNode(id: entity2.id)) // entity2 deve rimanere
+        let deletedEntity = try await sut.entity(id: entity1.id)
+        XCTAssertNil(deletedEntity)
+        let relsAfter = try await sut.queryRelationships(matching: nil).filter { $0.from == entity1.id }
+        XCTAssertEqual(relsAfter.count, 0)
+        let loadedEntity2 = try await sut.entity(id: entity2.id)
+        XCTAssertNotNil(loadedEntity2) // entity2 deve rimanere
+    }
+    
+    func testQueryEntitiesByType() async throws {
+        let now = Date()
+        let audit = AuditInfo(by: "test", at: now)
+
+        let entity1 = Entity(
+            id: UUID(),
+            type: "sensor",
+            tag: ["engine"],
+            group: ["test"],
+            created: audit,
+            updated: nil,
+            version: nil,
+            sharedWith: [],
+            permissions: nil,
+            payload: ["temperature": .double(88.3)]
+        )
+
+        let entity2 = Entity(
+            id: UUID(),
+            type: "driver",
+            tag: ["driver"],
+            group: ["test"],
+            created: audit,
+            updated: nil,
+            version: nil,
+            sharedWith: [],
+            permissions: nil,
+            payload: ["name": .string("John")]
+        )
+
+        try await sut.saveEntities([entity1, entity2])
+
+        let sensorEntities = try await sut.queryEntities(matching: "sensor")
+        let sensorCount = sensorEntities.count
+        let expectedSensorCount = 1
+        XCTAssertEqual(sensorCount, expectedSensorCount)
+        let firstSensorID = sensorEntities.first?.id
+        let expectedSensorID = entity1.id
+        XCTAssertEqual(firstSensorID, expectedSensorID)
+
+        let allEntities = try await sut.queryEntities(matching: nil)
+        let allCount = allEntities.count
+        XCTAssertEqual(allCount, 2)
     }
 
 }

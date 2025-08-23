@@ -18,6 +18,20 @@ enum GraphDBMigrations {
             try GraphDBSchema.createEntities(in: db)
             try GraphDBSchema.createRelationships(in: db)
         }
+        
+        migrator.registerMigration("createAssetBlobs") { db in
+            try db.execute(sql: """
+                CREATE TABLE asset_blobs (
+                    entityId TEXT PRIMARY KEY
+                        REFERENCES entities(id) ON DELETE CASCADE,
+                    data     BLOB NOT NULL,
+                    length   INTEGER NOT NULL,
+                    sha256   TEXT NOT NULL,
+                    mimeType TEXT,
+                    fileName TEXT
+                )
+                """)
+        }
 
         return migrator
     }

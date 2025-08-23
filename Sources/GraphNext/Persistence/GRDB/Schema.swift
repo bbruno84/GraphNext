@@ -23,6 +23,7 @@ enum GraphDBSchema {
             t.column("createdBy", .text)
             t.column("updatedAt", .double)
             t.column("updatedBy", .text)
+            t.column("sharedWith", .text)
         }
 
         try db.create(index: "idx_entities_type", on: entitiesTable, columns: ["type"])
@@ -39,6 +40,10 @@ enum GraphDBSchema {
             t.column("createdBy", .text)
             t.column("updatedAt", .double)
             t.column("updatedBy", .text)
+            t.column("tags", .text)
+            t.column("groupName", .text)
+            t.column("sharedWith", .text)
+            t.column("permissions", .text)
         }
 
         try db.create(index: "idx_rel_from", on: relationshipsTable, columns: ["fromId"])
