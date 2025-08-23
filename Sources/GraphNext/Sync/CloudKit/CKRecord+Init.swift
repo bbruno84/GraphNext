@@ -17,7 +17,6 @@ extension Entity {
             return nil
         }
 
-        let indexed = (try? JSONDecoder().decode([String: String].self, from: record["indexed"] as? Data ?? Data())) ?? [:]
         let payload = (try? JSONDecoder().decode(GraphPayload.self, from: record["payload"] as? Data ?? Data()))
         let sharedWith = record["sharedWith"] as? [String] ?? []
         let created = AuditInfo(by: createdBy, at: createdAt)
@@ -35,7 +34,6 @@ extension Entity {
             type: type,
             tag: [],
             group: [],
-            indexed: indexed,
             created: created,
             updated: updated,
             version: nil,
@@ -74,7 +72,6 @@ extension Relationship {
             type: type,
             tag: [],
             group: [],
-            indexed: [:],
             created: created,
             updated: updated,
             version: nil,
@@ -86,5 +83,3 @@ extension Relationship {
         )
     }
 }
-
-

@@ -13,7 +13,6 @@ public struct Entity: GraphNode {
     public var type: String
     public var tag: Set<String> = []
     public var group: Set<String> = []
-    public var indexed: [String: String] = [:]
     public var created: AuditInfo
     public var updated: AuditInfo?
     public var version: Int?
@@ -26,7 +25,6 @@ public struct Entity: GraphNode {
             lhs.type == rhs.type &&
             lhs.tag == rhs.tag &&
             lhs.group == rhs.group &&
-            lhs.indexed == rhs.indexed &&
             lhs.created == rhs.created &&
             lhs.updated == rhs.updated &&
             lhs.version == rhs.version &&
@@ -39,7 +37,6 @@ public struct Entity: GraphNode {
         hasher.combine(type)
         hasher.combine(tag)
         hasher.combine(group)
-        hasher.combine(indexed)
         hasher.combine(created)
         hasher.combine(updated)
         hasher.combine(version)
@@ -52,7 +49,6 @@ public struct Entity: GraphNode {
             type: String,
             tag: Set<String> = [],
             group: Set<String> = [],
-            indexed: [String: String] = [:],
             created: AuditInfo,
             updated: AuditInfo? = nil,
             version: Int? = nil,
@@ -64,7 +60,6 @@ public struct Entity: GraphNode {
             self.type = type
             self.tag = tag
             self.group = group
-            self.indexed = indexed
             self.created = created
             self.updated = updated
             self.version = version

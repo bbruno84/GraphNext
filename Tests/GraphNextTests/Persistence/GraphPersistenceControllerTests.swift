@@ -29,7 +29,6 @@ final class GraphPersistenceControllerTests: XCTestCase {
             type: "TestEntity",
             tag: ["tag1"],
             group: ["group1"],
-            indexed: ["key": "value"],
             created: .init(by: "tester", at: .now),
             updated: nil,
             version: 1,
@@ -44,7 +43,6 @@ final class GraphPersistenceControllerTests: XCTestCase {
         XCTAssertNotNil(loaded)
         XCTAssertEqual(loaded?.id, entity.id)
         XCTAssertEqual(loaded?.type, "TestEntity")
-        XCTAssertEqual(loaded?.indexed["key"], "value")
         XCTAssertEqual(loaded?.tag, ["tag1"])
         XCTAssertEqual(loaded?.group, ["group1"])
         XCTAssertEqual(loaded?.sharedWith, ["user1"])
@@ -61,7 +59,6 @@ final class GraphPersistenceControllerTests: XCTestCase {
             type: "TestRelationship",
             tag: ["tag2"],
             group: ["group2"],
-            indexed: ["rel": "yes"],
             created: .init(by: "tester", at: .now),
             updated: nil,
             version: 1,
@@ -82,7 +79,6 @@ final class GraphPersistenceControllerTests: XCTestCase {
         XCTAssertEqual(loaded?.to, toID)
         XCTAssertEqual(loaded?.tag, ["tag2"])
         XCTAssertEqual(loaded?.group, ["group2"])
-        XCTAssertEqual(loaded?.indexed["rel"], "yes")
         XCTAssertEqual(loaded?.sharedWith, ["user2"])
     }
 
@@ -94,7 +90,6 @@ final class GraphPersistenceControllerTests: XCTestCase {
             type: "ToDelete",
             tag: [],
             group: [],
-            indexed: [:],
             created: .init(by: "tester", at: .now),
             updated: nil,
             version: nil,
@@ -125,7 +120,6 @@ final class GraphPersistenceControllerTests: XCTestCase {
             type: "rel",
             tag: [],
             group: [],
-            indexed: [:],
             created: .init(by: "test"),
             updated: nil,
             version: nil,
@@ -154,5 +148,3 @@ final class GraphPersistenceControllerTests: XCTestCase {
     }
 
 }
-
-

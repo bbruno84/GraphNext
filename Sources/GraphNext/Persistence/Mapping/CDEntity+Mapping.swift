@@ -13,7 +13,6 @@ extension CDEntity {
         type = entity.type
         tag = entity.tag as NSSet
         group = entity.group as NSSet
-        indexed = entity.indexed as NSDictionary
         created = try? JSONEncoder().encode(entity.created)
         updatedAt = try? JSONEncoder().encode(entity.updated)
         version = entity.version.map { Int64($0) } ?? 0 // Convertiamo in modo sicuro
@@ -28,7 +27,6 @@ extension CDEntity {
             type: type!,
             tag: (tag as? Set<String>) ?? [],
             group: (group as? Set<String>) ?? [],
-            indexed: (indexed as? [String: String]) ?? [:],
             created: (try? JSONDecoder().decode(AuditInfo.self, from: created ?? Data())) ?? .init(by: "unknown", at: .distantPast),
             updated: (try? JSONDecoder().decode(AuditInfo.self, from: updatedAt ?? Data())),
             version: Int(version),
@@ -38,6 +36,3 @@ extension CDEntity {
         )
     }
 }
-
-
-

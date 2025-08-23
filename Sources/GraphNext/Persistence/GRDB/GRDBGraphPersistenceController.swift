@@ -168,7 +168,6 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
             type: row["type"],
             tag: try decodeJSON(from: row["tags"]) ?? [],
             group: try decodeJSON(from: row["groupName"]) ?? [],
-            indexed: [:],
             created: decodeAudit(from: row, prefix: "created")!,
             updated: decodeAudit(from: row, prefix: "updated"),
             version: nil,

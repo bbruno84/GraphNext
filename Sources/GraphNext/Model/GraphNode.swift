@@ -13,7 +13,6 @@ public protocol GraphNode: Identifiable, Hashable {
     var type: String { get }
     var tag: Set<String> { get set }
     var group: Set<String> { get set }
-    var indexed: [String: String] { get set }
     var created: AuditInfo { get set }
     var updated: AuditInfo? { get set }
     var version: Int? { get set }
