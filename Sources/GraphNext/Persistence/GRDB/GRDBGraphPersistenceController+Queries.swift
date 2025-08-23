@@ -9,16 +9,6 @@ import GRDB
 
 extension GRDBGraphPersistenceController {
 
-    private func asDatabaseValue(_ value: GraphPayloadValue) -> DatabaseValue {
-        switch value {
-        case .string(let str): return str.databaseValue
-        case .int(let int): return int.databaseValue
-        case .double(let dbl): return dbl.databaseValue
-        case .bool(let b): return (b ? 1 : 0).databaseValue
-        case .date(let date): return date.timeIntervalSince1970.databaseValue
-        }
-    }
-
     // MARK: - Query
 
     public func queryEntities(matching type: String?) async throws -> [Entity] {
@@ -60,9 +50,8 @@ extension GRDBGraphPersistenceController {
     public func queryEntities(wherePayloadKey key: String, equals value: GraphPayloadValue) async throws -> [Entity] {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
-            let jsonValue = self.asDatabaseValue(value)
             let sql = "SELECT * FROM entities WHERE \(columnPath) = ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [jsonValue])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeEntity(from:))
         }
     }
@@ -70,9 +59,8 @@ extension GRDBGraphPersistenceController {
     public func queryRelationships(wherePayloadKey key: String, equals value: GraphPayloadValue) async throws -> [Relationship] {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
-            let jsonValue = self.asDatabaseValue(value)
             let sql = "SELECT * FROM relationships WHERE \(columnPath) = ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [jsonValue])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeRelationship(from:))
         }
     }
@@ -81,7 +69,7 @@ extension GRDBGraphPersistenceController {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) > ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [self.asDatabaseValue(value)])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeEntity(from:))
         }
     }
@@ -90,7 +78,7 @@ extension GRDBGraphPersistenceController {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) > ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [self.asDatabaseValue(value)])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeRelationship(from:))
         }
     }
@@ -99,7 +87,7 @@ extension GRDBGraphPersistenceController {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) < ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [self.asDatabaseValue(value)])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeEntity(from:))
         }
     }
@@ -108,7 +96,7 @@ extension GRDBGraphPersistenceController {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) >= ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [self.asDatabaseValue(value)])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeEntity(from:))
         }
     }
@@ -117,7 +105,7 @@ extension GRDBGraphPersistenceController {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) <= ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [self.asDatabaseValue(value)])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeEntity(from:))
         }
     }
@@ -126,7 +114,7 @@ extension GRDBGraphPersistenceController {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
             let sql = "SELECT * FROM entities WHERE \(columnPath) BETWEEN ? AND ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [self.asDatabaseValue(lower), self.asDatabaseValue(upper)])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [lower, upper])
             return try rows.compactMap(self.decodeEntity(from:))
         }
     }
@@ -135,7 +123,7 @@ extension GRDBGraphPersistenceController {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) < ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [self.asDatabaseValue(value)])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeRelationship(from:))
         }
     }
@@ -144,7 +132,7 @@ extension GRDBGraphPersistenceController {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) >= ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [self.asDatabaseValue(value)])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeRelationship(from:))
         }
     }
@@ -153,7 +141,7 @@ extension GRDBGraphPersistenceController {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) <= ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [self.asDatabaseValue(value)])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [value])
             return try rows.compactMap(self.decodeRelationship(from:))
         }
     }
@@ -162,7 +150,7 @@ extension GRDBGraphPersistenceController {
         try await dbQueue.read { db in
             let columnPath = "json_extract(payload, '$.\(key).value')"
             let sql = "SELECT * FROM relationships WHERE \(columnPath) BETWEEN ? AND ?"
-            let rows = try Row.fetchAll(db, sql: sql, arguments: [self.asDatabaseValue(lower), self.asDatabaseValue(upper)])
+            let rows = try Row.fetchAll(db, sql: sql, arguments: [lower, upper])
             return try rows.compactMap(self.decodeRelationship(from:))
         }
     }
