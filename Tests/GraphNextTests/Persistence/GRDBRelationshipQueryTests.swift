@@ -91,4 +91,43 @@ final class GRDBRelationshipQueryTests: XCTestCase {
         let matches = try await sut.queryRelationships(wherePayloadKey: "amount", between: .int(50), and: .int(100))
         XCTAssertTrue(matches.contains(where: { $0.id == rel.id }))
     }
+    
+    func testRelatedEntitiesIncludeAttachedAsset() async throws {
+        let owner = Entity(
+            id: UUID(),
+            type: "invoice",
+            created: .init(by: "user", at: .now),
+            updated: nil,
+            version: 1,
+            payload: [:]
+        )
+
+        let asset = Entity(
+            id: UUID(),
+            type: "asset",
+            created: .init(by: "user", at: .now),
+            updated: nil,
+            version: 1,
+            payload: ["fileName": .string("test.pdf")]
+        )
+
+        let relation = Relationship(
+            id: UUID(),
+            type: "attaches",
+            created: .init(by: "user", at: .now),
+            updated: nil,
+            version: 1,
+            payload: [:],
+            from: owner.id,
+            to: asset.id
+        )
+
+        try await sut.saveEntity(owner)
+        try await sut.saveEntity(asset)
+        try await sut.saveRelationship(relation)
+
+        let related = try await sut.relatedEntities(from: owner.id)
+        XCTAssertTrue(related.contains { $0.id == asset.id }, "Expected asset to be related to owner via 'attaches'")
+    }
+
 }
