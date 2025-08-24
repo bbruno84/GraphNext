@@ -18,6 +18,12 @@ extension Entity {
             record["payload"] = payloadData as CKRecordValue
         }
         
+        // Attach CKAsset for file-backed assets, if a local URL is available.
+        if self.type == "asset" {
+            if let fileURL = try? AssetStorageProvider.shared.storage.urlIfPresent(assetId: self.id) {
+                record["file"] = CKAsset(fileURL: fileURL)
+            }
+        }
         
         record["sharedWith"] = self.sharedWith as CKRecordValue
         
@@ -59,4 +65,3 @@ extension Relationship {
         return record
     }
 }
-
