@@ -18,18 +18,12 @@ enum GraphDBMigrations {
             try GraphDBSchema.createRelationships(in: db)
         }
         
-        migrator.registerMigration("createAssetBlobs") { db in
-            try db.execute(sql: """
-                CREATE TABLE asset_blobs (
-                    entityId TEXT PRIMARY KEY
-                        REFERENCES entities(id) ON DELETE CASCADE,
-                    data     BLOB NOT NULL,
-                    length   INTEGER NOT NULL,
-                    sha256   TEXT NOT NULL,
-                    mimeType TEXT,
-                    fileName TEXT
-                )
-                """)
+
+        migrator.registerMigration("drop_legacy_asset_blobs_if_exists") { db in
+            // Safe cleanup for pre-PR2 development databases
+            try db.execute(sql: "DROP INDEX IF EXISTS idx_asset_blobs_entityId;")
+            try db.execute(sql: "DROP INDEX IF EXISTS idx_asset_blobs_sha256;")
+            try db.execute(sql: "DROP TABLE IF EXISTS asset_blobs;")
         }
 
         return migrator

@@ -20,7 +20,7 @@ final class GRDBMigrationTests: XCTestCase {
         
         try dbQueue.read { db in
             // ✅ Check required tables exist
-            let requiredTables = ["entities", "relationships", "asset_blobs"]
+            let requiredTables = ["entities", "relationships"]
             for table in requiredTables {
                 let count = try Int.fetchOne(
                     db,
@@ -29,6 +29,14 @@ final class GRDBMigrationTests: XCTestCase {
                 )
                 XCTAssertEqual(count, 1, "Missing table: \(table)")
             }
+            
+            // ❌ Ensure legacy table `asset_blobs` has been dropped (PR3)
+            let legacyCount = try Int.fetchOne(
+                db,
+                sql: "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+                arguments: ["asset_blobs"]
+            )
+            XCTAssertEqual(legacyCount, 0, "Legacy table asset_blobs should not exist after migrations")
             
             // ✅ Check required indices exist
             let requiredIndices = ["idx_entities_type", "idx_rel_from", "idx_rel_to"]
@@ -61,14 +69,6 @@ final class GRDBMigrationTests: XCTestCase {
                 XCTAssertTrue(relColumns.contains(col), "Missing column in relationships: \(col)")
             }
 
-            // ✅ Check columns for `asset_blobs`
-            let assetColumns = try db.columns(in: "asset_blobs").map(\.name)
-            let expectedAssetColumns = [
-                "entityId", "data", "length", "sha256", "mimeType", "fileName"
-            ]
-            for col in expectedAssetColumns {
-                XCTAssertTrue(assetColumns.contains(col), "Missing column in asset_blobs: \(col)")
-            }
         }
     }
 }
