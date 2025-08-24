@@ -3,6 +3,7 @@
 //  GraphNext
 //
 //  Created by Valerio Buriani on 23/08/25.
+//  Refactor file-backed by Regia GraphNext on 24/08/25
 //
 
 import Foundation
@@ -11,98 +12,89 @@ import GRDB
 
 extension GRDBGraphPersistenceController {
 
-    public func saveAssetBlob(
-        for assetId: UUID,
+    // MARK: - API pubbliche file-backed
+
+    /// Salva (o sovrascrive) i bytes dell'asset `assetId` su storage file-backed e ritorna i metadati.
+    /// Non tocca più il DB per i binari.
+    public func saveAssetData(
+        assetId: UUID,
         data: Data,
-        mimeType: String? = nil,
+        mimeType: String,
         fileName: String? = nil
     ) async throws -> AssetMetadata {
-        try await dbQueue.write { db in
-            let length = data.count
-            let sha256 = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let sha = data.sha256Hex()
+        let meta = AssetMetadata(length: data.count, sha256: sha, mimeType: mimeType, fileName: fileName)
+        _ = try storage.save(data: data, for: assetId, meta: meta)
+        return meta
+    }
 
-            try db.execute(sql: """
-                INSERT OR REPLACE INTO asset_blobs (entityId, data, length, sha256, mimeType, fileName)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                arguments: [
-                    assetId.uuidString,
-                    data,
-                    length,
-                    sha256,
-                    mimeType,
-                    fileName
-                ])
-
-            return AssetMetadata(length: length, sha256: sha256, mimeType: mimeType, fileName: fileName)
+    /// Carica interamente i bytes dell'asset da storage file-backed.
+    public func loadAssetData(assetId: UUID) async throws -> Data {
+        guard let stream = try storage.openRead(assetId: assetId) else {
+            throw NSError(domain: "GraphNext", code: 404, userInfo: [NSLocalizedDescriptionKey: "Asset not found locally"])
         }
+        stream.open()
+        defer { stream.close() }
+        var out = Data()
+        var buf = [UInt8](repeating: 0, count: 256*1024)
+        while stream.hasBytesAvailable {
+            let n = stream.read(&buf, maxLength: buf.count)
+            if n < 0 { break }
+            if n == 0 { break }
+            out.append(buf, count: n)
+        }
+        return out
+    }
+
+    /// Stream di sola lettura dal file locale (comodo per CKAsset o copie su disco).
+    public func openAssetStream(assetId: UUID) async throws -> InputStream? {
+        try storage.openRead(assetId: assetId)
+    }
+
+    /// URL locale se presente (non forza download/sync).
+    public func assetURLIfPresent(assetId: UUID) async throws -> URL? {
+        try storage.urlIfPresent(assetId: assetId)
+    }
+
+    /// Rimuove l’asset dal file storage. Non rimuove l’Entity; per quello usa deleteEntity(_:)
+    public func deleteAsset(assetId: UUID) async throws {
+        try storage.remove(assetId: assetId)
+    }
+
+    /// Hook per plugin di sync (CloudKit) che scaricano on‑demand il file quando serve.
+    /// Implementazione GRDB: no‑op, ritorna subito.
+    public func fetchAssetIfNeeded(assetId: UUID) async throws {
+        // no-op per GRDB: lo storage locale non scarica da remoto.
+        // Il plugin CloudKit farà override/usando un service specifico.
+    }
+
+    // MARK: - Helper
+
+    private var storage: AssetStorage {
+        AssetStorageProvider.shared.storage
     }
 }
 
-extension GRDBGraphPersistenceController {
-
-    public func loadAssetBlob(for assetId: UUID) async throws -> (data: Data, meta: AssetMetadata) {
-        try await dbQueue.read { db in
-            guard let row = try Row.fetchOne(
-                db,
-                sql: """
-                    SELECT data, length, sha256, mimeType, fileName
-                    FROM asset_blobs
-                    WHERE entityId = ?
-                    """,
-                arguments: [assetId.uuidString]
-            ) else {
-                throw NSError(domain: "GraphNext", code: 404, userInfo: [NSLocalizedDescriptionKey: "Asset not found"])
-            }
-
-            guard let data: Data = row["data"] else {
-                throw NSError(domain: "GraphNext", code: 500, userInfo: [NSLocalizedDescriptionKey: "Asset data corrupted"])
-            }
-
-            let length: Int = row["length"]
-            let sha256: String = row["sha256"]
-            let mimeType: String? = row["mimeType"]
-            let fileName: String? = row["fileName"]
-
-            return (
-                data,
-                AssetMetadata(length: length, sha256: sha256, mimeType: mimeType, fileName: fileName)
-            )
-        }
-    }
-}
+// MARK: - Convenience: createAssetAndAttach (file-backed)
 
 extension GRDBGraphPersistenceController {
 
-    public func deleteAssetBlob(for assetId: UUID) async throws {
-        try await dbQueue.write { db in
-            try db.execute(
-                sql: "DELETE FROM asset_blobs WHERE entityId = ?",
-                arguments: [assetId.uuidString]
-            )
-        }
-    }
-}
-
-extension GRDBGraphPersistenceController {
+    /// Crea un'Entity `asset`, salva i bytes su file storage, e collega con Relationship `attaches` al proprietario.
     public func createAssetAndAttach(
         data: Data,
         mimeType: String?,
         fileName: String?,
         attachTo ownerId: UUID
     ) async throws -> Entity {
-        // 1. Calcolo metadati
-        let sha256 = SHA256.hash(data: data).compactMap { String(format: "%02x", $0) }.joined()
-        let meta = AssetMetadata(
-            length: data.count,
-            sha256: sha256,
-            mimeType: mimeType,
-            fileName: fileName
-        )
 
-        // 2. Crea Entity asset
+        // 1) Metadati e Entity asset
+        let mime = mimeType ?? "application/octet-stream"
+        let sha = data.sha256Hex()
+        let meta = AssetMetadata(length: data.count, sha256: sha, mimeType: mime, fileName: fileName)
+
+        let assetId = UUID()
         let asset = Entity(
-            id: UUID(),
+            id: assetId,
             type: "asset",
             tag: [],
             group: [],
@@ -112,14 +104,13 @@ extension GRDBGraphPersistenceController {
             sharedWith: [],
             permissions: nil,
             payload: [
-                "mimeType": .string(mimeType ?? ""),
+                "mimeType": .string(mime),
                 "fileName": .string(fileName ?? ""),
-                "length": .int(data.count),
-                "sha256": .string(sha256)
+                "length": .int(meta.length),
+                "sha256": .string(meta.sha256)
             ]
         )
 
-        // 3. Crea Relationship
         let link = Relationship(
             id: UUID(),
             type: "attaches",
@@ -135,9 +126,9 @@ extension GRDBGraphPersistenceController {
             to: asset.id
         )
 
-        // 4. Salva tutto
+        // 2) Persisti Entity + Relationship (DB), e salva file su storage
         try await saveEntity(asset)
-        _ = try await saveAssetBlob(for: asset.id, data: data, mimeType: mimeType, fileName: fileName)
+        _ = try storage.save(data: data, for: assetId, meta: meta)
         try await saveRelationship(link)
 
         return asset
