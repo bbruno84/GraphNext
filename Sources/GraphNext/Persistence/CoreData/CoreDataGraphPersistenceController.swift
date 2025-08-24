@@ -11,6 +11,9 @@ import CoreData
 public final class CoreDataGraphPersistenceController {
     
     private let container: NSPersistentContainer
+    
+    // Assets helper
+    private var assetStorage: AssetStorage { AssetStorageProvider.shared.storage }
 
     public init(storeName: String = "GraphNext", inMemory: Bool = false) {
         guard let modelURL = Bundle.module.url(forResource: "GraphNext", withExtension: "momd"),
@@ -159,6 +162,10 @@ public final class CoreDataGraphPersistenceController {
         let semaphore = DispatchSemaphore(value: 0)
         container.performBackgroundTask { context in
             if let entity = self.fetchEntity(id: id, in: context) {
+                // Best-effort: if this is an asset entity, remove the local file before deleting from Core Data
+                if entity.type == "asset" {
+                    try? self.assetStorage.remove(assetId: id)
+                }
                 context.delete(entity)
             }
             if let relationship = self.fetchRelationship(id: id, in: context) {
@@ -222,6 +229,10 @@ public final class CoreDataGraphPersistenceController {
 
             // 2) Elimina l'entity se presente
             if let entity = try self.fetchCDEntity(id: id, in: context) {
+                // Best-effort: se è un asset, rimuovi il file locale prima della delete
+                if entity.type == "asset" {
+                    try? self.assetStorage.remove(assetId: id)
+                }
                 context.delete(entity)
             }
 

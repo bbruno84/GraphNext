@@ -40,3 +40,18 @@ Tutti gli asset sono file‑backed su disco locale. Nel database (GRDB/Core Data
 - `createAssetAndAttach(...)` ora salva i dati su file storage e scrive solo metadati nel `payload` dell’`Entity(type:"asset")`.
 
 > Nella PR #3 verrà **droppata** la tabella `asset_blobs` tramite migrazione GRDB.
+
+## PR #4 — Core Data integrazione (file‑backed)
+
+- Nessun `Binary Data`/BLOB in Core Data: gli asset sono `Entity(type:"asset")` con metadati nel `payload`.
+- Binari salvati su disco tramite `AssetStorage` (default: `FileAssetStorage`).
+- API pubbliche allineate a GRDB:
+  - `saveAssetData(assetId:data:mimeType:fileName:)`
+  - `loadAssetData(assetId:)`
+  - `openAssetStream(assetId:)`
+  - `assetURLIfPresent(assetId:)`
+  - `deleteAsset(assetId:)`
+  - `fetchAssetIfNeeded(assetId:)` (no‑op per Core Data)
+  - `createAssetAndAttach(data:mimeType:fileName:attachTo:)`
+- `deleteEntity(id:)` rimuove anche il file locale quando l’entity è un asset (best‑effort).
+- Test in‑memory `CoreDataFileBackedAssetsTests` verdi.
