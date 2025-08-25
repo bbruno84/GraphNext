@@ -22,7 +22,7 @@ final class GRDBGraphPersistenceController_AssetsTests: XCTestCase {
         try await Task.sleep(nanoseconds: 100_000_000) // Give GRDB time to migrate
     }
 
-    func testAssetBlobRoundTrip() async throws {
+    func testAssetRoundTrip_FileBacked() async throws {
         let data = Data("hello world".utf8)
         let mimeType = "text/plain"
         let fileName = "test.txt"
@@ -34,15 +34,24 @@ final class GRDBGraphPersistenceController_AssetsTests: XCTestCase {
             attachTo: UUID()
         )
 
-        let (loadedData, metadata) = try await sut.loadAssetBlob(for: asset.id)
+        let loadedData = try await sut.loadAssetData(assetId: asset.id)
 
         XCTAssertEqual(loadedData, data)
-        XCTAssertEqual(metadata.length, data.count)
-        XCTAssertEqual(metadata.mimeType, mimeType)
-        XCTAssertEqual(metadata.fileName, fileName)
+        // Validate metadata via entity payload (file-backed: no direct blob metadata API)
+        let fetchedAsset = try await sut.entity(id: asset.id)
+        XCTAssertNotNil(fetchedAsset)
+        guard let payload = fetchedAsset!.payload else { XCTFail("Missing payload in asset entity"); return }
+        // length
+        if case let .int(len)? = payload["length"] { XCTAssertEqual(len, data.count) } else { XCTFail("Missing length in payload") }
+        // mimeType
+        if case let .string(mt)? = payload["mimeType"] { XCTAssertEqual(mt, mimeType) } else { XCTFail("Missing mimeType in payload") }
+        // fileName
+        if case let .string(fn)? = payload["fileName"] { XCTAssertEqual(fn, fileName) } else { XCTFail("Missing fileName in payload") }
+        // sha256
+        if case let .string(sha)? = payload["sha256"] { XCTAssertEqual(sha, data.sha256Hex()) } else { XCTFail("Missing sha256 in payload") }
     }
 
-    func testCascadeDeleteAssetAlsoDeletesBlob() async throws {
+    func testCascadeDeleteAssetAlsoRemovesFile() async throws {
         let data = Data("to be deleted".utf8)
 
         let asset = try await sut.createAssetAndAttach(
@@ -54,15 +63,13 @@ final class GRDBGraphPersistenceController_AssetsTests: XCTestCase {
 
         try await sut.deleteEntity(id: asset.id)
 
-        // Verifica che la riga nella tabella asset_blobs sia stata eliminata
-        try await sut.dbQueue.read { db in
-            let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM asset_blobs WHERE entityId = ?", arguments: [asset.id.uuidString])
-            XCTAssertEqual(count, 0, "Expected asset blob to be deleted via cascade")
-        }
+        // Verifica che il file locale sia stato rimosso (nessun URL presente)
+        let urlAfterDelete = try AssetStorageProvider.shared.storage.urlIfPresent(assetId: asset.id)
+        XCTAssertNil(urlAfterDelete, "Expected asset file to be removed from local storage")
 
         // E continua a verificare che il caricamento fallisca
         do {
-            _ = try await sut.loadAssetBlob(for: asset.id)
+            _ = try await sut.loadAssetData(assetId: asset.id)
             XCTFail("Expected error when loading deleted asset blob")
         } catch {
             // Expected

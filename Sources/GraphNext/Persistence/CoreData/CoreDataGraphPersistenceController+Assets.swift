@@ -1,21 +1,18 @@
 //
-//  GRDBGraphPersistenceController+Assets.swift
+//  CoreDataGraphPersistenceController+Assets.swift
 //  GraphNext
 //
-//  Created by Valerio Buriani on 23/08/25.
-//  Refactor file-backed by Regia GraphNext on 24/08/25
+//  Created by Valerio Buriani on 24/08/2025.
 //
 
 import Foundation
-import CryptoKit
-import GRDB
 
-extension GRDBGraphPersistenceController {
+extension CoreDataGraphPersistenceController {
 
-    // MARK: - API pubbliche file-backed
+    // MARK: - File-backed Asset APIs (aligned with GRDB)
 
-    /// Salva (o sovrascrive) i bytes dell'asset `assetId` su storage file-backed e ritorna i metadati.
-    /// Non tocca più il DB per i binari.
+    /// Salva (o sovrascrive) i bytes dell'asset `assetId` nello storage file-backed e ritorna i metadati.
+    @discardableResult
     public func saveAssetData(
         assetId: UUID,
         data: Data,
@@ -31,22 +28,21 @@ extension GRDBGraphPersistenceController {
     /// Carica interamente i bytes dell'asset da storage file-backed.
     public func loadAssetData(assetId: UUID) async throws -> Data {
         guard let stream = try storage.openRead(assetId: assetId) else {
-            throw NSError(domain: "GraphNext", code: 404, userInfo: [NSLocalizedDescriptionKey: "Asset not found locally"])
+            throw NSError(domain: "GraphNext.CoreData", code: 404, userInfo: [NSLocalizedDescriptionKey: "Asset not found locally"])
         }
         stream.open()
         defer { stream.close() }
         var out = Data()
-        var buf = [UInt8](repeating: 0, count: 256*1024)
+        var buf = [UInt8](repeating: 0, count: 256 * 1024)
         while stream.hasBytesAvailable {
             let n = stream.read(&buf, maxLength: buf.count)
-            if n < 0 { break }
-            if n == 0 { break }
+            if n <= 0 { break }
             out.append(buf, count: n)
         }
         return out
     }
 
-    /// Stream di sola lettura dal file locale (comodo per CKAsset o copie su disco).
+    /// Stream di sola lettura dal file locale (utile per CKAsset o copie su disco).
     public func openAssetStream(assetId: UUID) async throws -> InputStream? {
         try storage.openRead(assetId: assetId)
     }
@@ -56,28 +52,16 @@ extension GRDBGraphPersistenceController {
         try storage.urlIfPresent(assetId: assetId)
     }
 
-    /// Rimuove l’asset dal file storage. Non rimuove l’Entity; per quello usa deleteEntity(_:)
+    /// Rimuove l’asset dallo storage file-backed (non rimuove l’Entity).
     public func deleteAsset(assetId: UUID) async throws {
         try storage.remove(assetId: assetId)
     }
 
     /// Hook per plugin di sync (CloudKit) che scaricano on‑demand il file quando serve.
-    /// Implementazione GRDB: no‑op, ritorna subito.
-    public func fetchAssetIfNeeded(assetId: UUID) async throws {
-        // no-op per GRDB: lo storage locale non scarica da remoto.
-        // Il plugin CloudKit farà override/usando un service specifico.
-    }
+    /// Core Data: no‑op.
+    public func fetchAssetIfNeeded(assetId: UUID) async throws { }
 
-    // MARK: - Helper
-
-    private var storage: AssetStorage {
-        AssetStorageProvider.shared.storage
-    }
-}
-
-// MARK: - Convenience: createAssetAndAttach (file-backed)
-
-extension GRDBGraphPersistenceController {
+    // MARK: - Convenience: create + attach
 
     /// Crea un'Entity `asset`, salva i bytes su file storage, e collega con Relationship `attaches` al proprietario.
     public func createAssetAndAttach(
@@ -87,7 +71,6 @@ extension GRDBGraphPersistenceController {
         attachTo ownerId: UUID
     ) async throws -> Entity {
 
-        // 1) Metadati e Entity asset
         let mime = mimeType ?? "application/octet-stream"
         let sha = data.sha256Hex()
         let meta = AssetMetadata(length: data.count, sha256: sha, mimeType: mime, fileName: fileName)
@@ -126,11 +109,15 @@ extension GRDBGraphPersistenceController {
             to: asset.id
         )
 
-        // 2) Persisti Entity + Relationship (DB), e salva file su storage
+        // Persisti Entity + Relationship (Core Data) e salva file su storage
         try await saveEntity(asset)
         _ = try storage.save(data: data, for: assetId, meta: meta)
         try await saveRelationship(link)
 
         return asset
     }
+
+    // MARK: - Private
+
+    private var storage: AssetStorage { AssetStorageProvider.shared.storage }
 }

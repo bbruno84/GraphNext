@@ -29,6 +29,8 @@ public struct CloudKitSyncConfig: Codable, Equatable {
     public var retryMaxAttempts: Int
     /// Delay base (secondi) per exponential backoff. Default: 0.5s
     public var retryBaseDelaySeconds: Double
+    /// Soglia dimensionale (byte) sotto la quale alleghiamo il CKAsset direttamente nel push. Default: 15 MB
+    public var assetThresholdBytes: Int
 
     public init(
         containerIdentifier: String? = nil,
@@ -39,6 +41,7 @@ public struct CloudKitSyncConfig: Codable, Equatable {
         debounceMilliseconds: Int = 750,
         retryMaxAttempts: Int = 3,
         retryBaseDelaySeconds: Double = 0.5,
+        assetThresholdBytes: Int = 15 * 1024 * 1024,
         pushBatchSize: Int = 100,
         pushMaxIntervalSeconds: Double = 3.0
     ) {
@@ -50,6 +53,7 @@ public struct CloudKitSyncConfig: Codable, Equatable {
         self.debounceMilliseconds = debounceMilliseconds
         self.retryMaxAttempts = retryMaxAttempts
         self.retryBaseDelaySeconds = retryBaseDelaySeconds
+        self.assetThresholdBytes = max(0, assetThresholdBytes)
         self.pushBatchSize = max(1, pushBatchSize)
         self.pushMaxIntervalSeconds = max(0.1, pushMaxIntervalSeconds)
     }

@@ -8,6 +8,12 @@
 import CloudKit
 import Foundation
 
+/// Global threshold (bytes) to decide whether to attach CKAsset on push.
+/// Set from CloudKitSync.configuration.assetThresholdBytes at CloudKitSync init.
+enum _CKAttachmentThreshold {
+    static var bytes: Int = 15 * 1024 * 1024 // default 15 MB
+}
+
 extension Entity {
     func asCKRecord() -> CKRecord {
         let record = CKRecord(recordType: "Entity", recordID: CKRecord.ID(recordName: self.id.uuidString))
@@ -18,6 +24,20 @@ extension Entity {
             record["payload"] = payloadData as CKRecordValue
         }
         
+        // Attach CKAsset for file-backed assets, if a local URL is available and under threshold.
+        if self.type == "asset" {
+            if let fileURL = try? AssetStorageProvider.shared.storage.urlIfPresent(assetId: self.id) {
+                if let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
+                   let size = values.fileSize,
+                   size <= _CKAttachmentThreshold.bytes {
+                    record["file"] = CKAsset(fileURL: fileURL)
+                } else {
+                    // Over threshold or unknown size: keep only metadata in payload
+                    // (intentionally skip attaching CKAsset)
+                    print("Asset over threshold: \(fileURL), skipping attachment")
+                }
+            }
+        }
         
         record["sharedWith"] = self.sharedWith as CKRecordValue
         
@@ -59,4 +79,3 @@ extension Relationship {
         return record
     }
 }
-

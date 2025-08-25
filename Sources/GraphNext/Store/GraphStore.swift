@@ -109,6 +109,15 @@ public final class GraphStore: @preconcurrency ObservableObject {
         return toIDs.compactMap { entities[$0] }
     }
     
+    /// Segnala in modo esplicito che l'asset con `id` è pronto localmente (file disponibile).
+    /// Questo helper è pensato per plugin come CloudKit: emette un `.update` via Combine
+    /// senza modificare i dati, così la UI/consumatori possono aggiornarsi.
+    public func notifyAssetReady(_ id: UUID) {
+        if let e = entity(id: id) {
+            update(node: e, isRemote: true)
+        }
+    }
+    
     public func clear(isRemote: Bool = false) {
         for entity in entities.values {
             remove(id: entity.id, isRemote: isRemote)

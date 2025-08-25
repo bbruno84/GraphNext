@@ -85,4 +85,8 @@ final class MockRemoteBackend: RemoteSyncBackend {
         deletedRelationshipIDsBuffer.removeAll()
         return ids
     }
+    
+    func subscribeToRemoteChanges() async throws {
+        // no-op in tests
+    }
 }

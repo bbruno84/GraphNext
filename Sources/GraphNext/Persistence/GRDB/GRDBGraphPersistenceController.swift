@@ -11,6 +11,9 @@ import GRDB
 public final class GRDBGraphPersistenceController: GraphPersistenceController {
     
     internal let dbQueue: DatabaseQueue
+    
+    // Assets helper
+    private var assetStorage: AssetStorage { AssetStorageProvider.shared.storage }
 
     public init(path: String, inMemory: Bool = false) throws {
         var config = Configuration()
@@ -68,6 +71,13 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
     }
 
     public func deleteEntity(id: UUID) async throws {
+        // Pre-fetch: capiamo se è un asset
+        let existing = try await entity(id: id)
+        if existing?.type == "asset" {
+            // Best-effort: rimuovi file e indice locale (non bloccare la cancellazione DB se fallisce)
+            try? assetStorage.remove(assetId: id)
+        }
+        // Poi elimina da DB (relationships + entity)
         try await dbQueue.write { db in
             try db.execute(sql: "DELETE FROM relationships WHERE fromId = ? OR toId = ?", arguments: [id.uuidString, id.uuidString])
             try db.execute(sql: "DELETE FROM entities WHERE id = ?", arguments: [id.uuidString])
@@ -114,13 +124,32 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
 
     public func deleteEntities(_ ids: [UUID]) async throws {
         guard !ids.isEmpty else { return }
+
+        // Pre-fetch per individuare quali sono asset
+        var assetIDs: [UUID] = []
+        for id in ids {
+            if let e = try await entity(id: id), e.type == "asset" {
+                assetIDs.append(id)
+            }
+        }
+
+        // Best-effort: rimuovi i file locali degli asset
+        for assetId in assetIDs {
+            try? assetStorage.remove(assetId: assetId)
+        }
+
+        // Cancella da DB (relationships + entities)
         let strings = ids.map(\.uuidString)
         let placeholders = Array(repeating: "?", count: strings.count).joined(separator: ",")
         try await dbQueue.write { db in
-            // First remove relationships that reference these entities
-            try db.execute(sql: "DELETE FROM relationships WHERE fromId IN (\(placeholders)) OR toId IN (\(placeholders))", arguments: StatementArguments(strings + strings))
-            // Then remove the entities
-            try db.execute(sql: "DELETE FROM entities WHERE id IN (\(placeholders))", arguments: StatementArguments(strings))
+            try db.execute(
+                sql: "DELETE FROM relationships WHERE fromId IN (\(placeholders)) OR toId IN (\(placeholders))",
+                arguments: StatementArguments(strings + strings)
+            )
+            try db.execute(
+                sql: "DELETE FROM entities WHERE id IN (\(placeholders))",
+                arguments: StatementArguments(strings)
+            )
         }
     }
 
