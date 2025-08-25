@@ -2,14 +2,13 @@
 <model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23788.4" systemVersion="24F74" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
     <entity name="CDEntity" representedClassName="CDEntity" syncable="YES" codeGenerationType="class">
         <attribute name="created" optional="YES" attributeType="Binary"/>
-        <attribute name="group" optional="YES" attributeType="Transformable"/>
+        <attribute name="group" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromDataTransformerName" customClassName="NSSet"/>
         <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
-        <attribute name="indexed" optional="YES" attributeType="Transformable"/>
         <attribute name="payload" optional="YES" attributeType="Binary"/>
         <attribute name="permissions" optional="YES" attributeType="Binary"/>
         <attribute name="properties" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
-        <attribute name="sharedWith" optional="YES" attributeType="Transformable"/>
-        <attribute name="tag" optional="YES" attributeType="Transformable"/>
+        <attribute name="sharedWith" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromDataTransformerName" customClassName="NSArray"/>
+        <attribute name="tag" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromDataTransformerName" customClassName="NSSet"/>
         <attribute name="type" attributeType="String"/>
         <attribute name="updatedAt" optional="YES" attributeType="Binary"/>
         <attribute name="version" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
@@ -17,14 +16,13 @@
     <entity name="CDRelationship" representedClassName="CDRelationship" syncable="YES" codeGenerationType="class">
         <attribute name="created" optional="YES" attributeType="Binary"/>
         <attribute name="from" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
-        <attribute name="group" optional="YES" attributeType="Transformable"/>
+        <attribute name="group" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromDataTransformerName" customClassName="NSSet"/>
         <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
-        <attribute name="indexed" optional="YES" attributeType="Transformable"/>
         <attribute name="payload" optional="YES" attributeType="Binary"/>
         <attribute name="permissions" optional="YES" attributeType="Binary"/>
         <attribute name="properties" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
-        <attribute name="sharedWith" optional="YES" attributeType="Transformable"/>
-        <attribute name="tag" optional="YES" attributeType="Transformable"/>
+        <attribute name="sharedWith" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromDataTransformerName" customClassName="NSArray"/>
+        <attribute name="tag" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromDataTransformerName" customClassName="NSSet"/>
         <attribute name="to" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="type" attributeType="String"/>
         <attribute name="updatedAt" optional="YES" attributeType="Binary"/>

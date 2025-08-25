@@ -75,7 +75,7 @@ final class PushFlowTests: XCTestCase {
     func testPushIncrementalAndIdempotentForEntities() async throws {
         // 1) Inserisco 2 entities nello store
         var e1 = makeEntity(type: "P1")
-        var e2 = makeEntity(type: "P2")
+        let e2 = makeEntity(type: "P2")
         await store.add(node: e1, isRemote: false)
         await store.add(node: e2, isRemote: false)
 

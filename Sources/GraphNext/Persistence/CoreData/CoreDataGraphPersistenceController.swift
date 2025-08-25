@@ -66,7 +66,6 @@ public final class CoreDataGraphPersistenceController {
 
     public func loadNode(id: UUID) throws -> (any GraphNode)? {
         var result: (any GraphNode)?
-        var thrownError: Error?
         let semaphore = DispatchSemaphore(value: 0)
         container.performBackgroundTask { context in
             if let cdEntity = self.fetchEntity(id: id, in: context) {
@@ -77,9 +76,6 @@ public final class CoreDataGraphPersistenceController {
             semaphore.signal()
         }
         semaphore.wait()
-        if let error = thrownError {
-            throw error
-        }
         return result
     }
 

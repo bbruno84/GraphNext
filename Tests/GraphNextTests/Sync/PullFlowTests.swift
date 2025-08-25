@@ -106,7 +106,7 @@ final class PullFlowTests: XCTestCase {
 
     func testPullAppliesRemoteWinsOverLocal() async throws {
         // Local entity con dati iniziali
-        var local = makeEntity(type: "Local")
+        let local = makeEntity(type: "Local")
         await store.add(node: local, isRemote: false)
 
         // Remoto con stesso id ma dati "più nuovi" (updated più recente)

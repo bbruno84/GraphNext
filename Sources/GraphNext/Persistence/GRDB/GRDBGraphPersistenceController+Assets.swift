@@ -86,6 +86,8 @@ extension GRDBGraphPersistenceController {
         fileName: String?,
         attachTo ownerId: UUID
     ) async throws -> Entity {
+        // 1. Calcolo metadati
+        _ = SHA256.hash(data: data).compactMap { String(format: "%02x", $0) }.joined()
 
         // 1) Metadati e Entity asset
         let mime = mimeType ?? "application/octet-stream"

@@ -76,7 +76,7 @@ import XCTest
     func testInitWithBackend_AutoSyncPullThenPush() async throws {
         let engine = MockEngine()
 
-        var cfg = GraphNextConfig(
+        let cfg = GraphNextConfig(
             inMemoryStore: true,
             storeName: "Test_WithBackend",
             preloadFromPersistence: false,
