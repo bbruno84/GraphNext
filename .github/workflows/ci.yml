@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [ development ]
+  pull_request:
+    branches: [ development ]
+
+permissions:
+  contents: write  # serve per poter fare commit/push (repo_tree.md) dal workflow
+
+jobs:
+  build_and_test:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 15.4
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Tool Versions
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Build
+        run: swift build -v
+
+      - name: Test
+        run: swift test -v
+
+      # --- Genera Docs/repo_tree.md (branch-agnostico, link relativi) ---
+      - name: Generate repo_tree.md
+        run: Scripts/generate_repo_tree.sh
+
+      - name: Commit repo_tree.md if changed
+        run: |
+          if [[ -n "$(git status --porcelain Docs/repo_tree.md)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Docs/repo_tree.md
+            git commit -m "ci: update repo_tree.md [skip ci]"
+            git push origin "${{ github.ref_name }}"
+          fi
