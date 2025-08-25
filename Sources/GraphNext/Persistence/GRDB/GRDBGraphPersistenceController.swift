@@ -8,6 +8,16 @@
 import Foundation
 import GRDB
 
+enum GRDBPersistenceGuardError: LocalizedError {
+    case directAssetEntityCreationForbidden
+    var errorDescription: String? {
+        switch self {
+        case .directAssetEntityCreationForbidden:
+            return "Direct creation/update of asset entities is forbidden. Use Asset APIs instead."
+        }
+    }
+}
+
 public final class GRDBGraphPersistenceController: GraphPersistenceController {
     
     internal let dbQueue: DatabaseQueue
@@ -38,6 +48,14 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
     // MARK: - Entity
 
     public func saveEntity(_ entity: Entity) async throws {
+        try await saveEntity(entity, allowAsset: false)
+    }
+
+    @inline(__always)
+    internal func saveEntity(_ entity: Entity, allowAsset: Bool) async throws {
+        if entity.type == "asset", allowAsset == false {
+            throw GRDBPersistenceGuardError.directAssetEntityCreationForbidden
+        }
         try await dbQueue.write { db in
             let encodedTags = try self.encodeJSON(Array(entity.tag))
             let encodedGroup = try self.encodeJSON(Array(entity.group))
@@ -89,36 +107,8 @@ public final class GRDBGraphPersistenceController: GraphPersistenceController {
     }
 
     public func saveEntities(_ entities: [Entity]) async throws {
-        try await dbQueue.write { db in
-            for entity in entities {
-                do {
-                    let encodedTags = try self.encodeJSON(Array(entity.tag))
-                    let encodedGroup = try self.encodeJSON(Array(entity.group))
-                    let encodedPayload = try self.encodeJSON(entity.payload)
-                    let encodedSharedWith = try self.encodeJSON(Array(entity.sharedWith))
-
-                    try db.execute(
-                        sql: """
-                        INSERT OR REPLACE INTO entities (id, type, groupName, tags, payload, createdAt, createdBy, updatedAt, updatedBy, sharedWith)
-                        VALUES (:id, :type, :groupName, :tags, :payload, :createdAt, :createdBy, :updatedAt, :updatedBy, :sharedWith)
-                        """,
-                        arguments: [
-                            "id": entity.id.uuidString,
-                            "type": entity.type,
-                            "groupName": encodedGroup,
-                            "tags": encodedTags,
-                            "payload": encodedPayload,
-                            "createdAt": entity.created.at.timeIntervalSince1970,
-                            "createdBy": entity.created.by,
-                            "updatedAt": entity.updated?.at.timeIntervalSince1970,
-                            "updatedBy": entity.updated?.by,
-                            "sharedWith": encodedSharedWith
-                        ]
-                    )
-                } catch {
-                    throw error
-                }
-            }
+        for entity in entities {
+            try await saveEntity(entity, allowAsset: false)
         }
     }
 

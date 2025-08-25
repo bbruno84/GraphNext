@@ -129,7 +129,7 @@ extension GRDBGraphPersistenceController {
         )
 
         // 2) Persisti Entity + Relationship (DB), e salva file su storage
-        try await saveEntity(asset)
+        try await saveEntity(asset, allowAsset: true)
         _ = try storage.save(data: data, for: assetId, meta: meta)
         try await saveRelationship(link)
 

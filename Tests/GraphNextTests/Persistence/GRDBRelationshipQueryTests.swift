@@ -5,7 +5,6 @@
 //  Created by Valerio Buriani on 23/08/25.
 //
 
-
 import XCTest
 @testable import GraphNext
 
@@ -93,6 +92,7 @@ final class GRDBRelationshipQueryTests: XCTestCase {
     }
     
     func testRelatedEntitiesIncludeAttachedAsset() async throws {
+        // Owner entity (non-asset)
         let owner = Entity(
             id: UUID(),
             type: "invoice",
@@ -102,32 +102,26 @@ final class GRDBRelationshipQueryTests: XCTestCase {
             payload: [:]
         )
 
-        let asset = Entity(
-            id: UUID(),
-            type: "asset",
-            created: .init(by: "user", at: .now),
-            updated: nil,
-            version: 1,
-            payload: ["fileName": .string("test.pdf")]
-        )
-
-        let relation = Relationship(
-            id: UUID(),
-            type: "attaches",
-            created: .init(by: "user", at: .now),
-            updated: nil,
-            version: 1,
-            payload: [:],
-            from: owner.id,
-            to: asset.id
-        )
-
+        // Persist the owner first
         try await sut.saveEntity(owner)
-        try await sut.saveEntity(asset)
-        try await sut.saveRelationship(relation)
 
+        // Create a tiny PDF-like payload (starts with "%PDF")
+        let data = Data([0x25, 0x50, 0x44, 0x46])
+
+        // Use the dedicated Asset API (this also creates the relationship)
+        let asset = try await sut.createAssetAndAttach(
+            data: data,
+            mimeType: "application/pdf",
+            fileName: "test.pdf",
+            attachTo: owner.id
+        )
+
+        // Query related entities from the owner; it should include the asset we just attached
         let related = try await sut.relatedEntities(from: owner.id)
-        XCTAssertTrue(related.contains { $0.id == asset.id }, "Expected asset to be related to owner via 'attaches'")
+        XCTAssertTrue(
+            related.contains { $0.id == asset.id },
+            "Expected asset (id: \(asset.id)) to be related to owner via asset attachment API"
+        )
     }
 
 }
