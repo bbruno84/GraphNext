@@ -20,7 +20,7 @@ final class CoreDataFileBackedAssetsTests: XCTestCase {
         let assetsDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("GN_Assets_CD_\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: assetsDir, withIntermediateDirectories: true)
-        try AssetStorageProvider.shared.setStorage(try FileAssetStorage(baseDirectory: assetsDir))
+        AssetStorageProvider.shared.setStorage(try FileAssetStorage(baseDirectory: assetsDir))
     }
 
     func testCreateAttachAndRoundTrip_CoreData() async throws {
