@@ -87,6 +87,7 @@ public final class CloudKitSync: GraphSyncEngine {
         self.persistence = persistence
         self.store = store
         self.configuration = configuration
+        _CKAttachmentThreshold.bytes = max(0, configuration.assetThresholdBytes)
         self.pullDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
         self.syncDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
         self.pushDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
@@ -122,6 +123,7 @@ public final class CloudKitSync: GraphSyncEngine {
         self.persistence = persistence
         self.store = store
         self.configuration = configuration
+        _CKAttachmentThreshold.bytes = max(0, configuration.assetThresholdBytes)
         self.pullDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
         self.syncDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)
         self.pushDebouncer = AsyncDebouncer(milliseconds: configuration.debounceMilliseconds)

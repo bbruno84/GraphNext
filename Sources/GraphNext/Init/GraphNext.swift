@@ -44,6 +44,8 @@ public struct GraphNextConfig {
     public var preloadFromPersistence: Bool
     /// Se `true`, all’avvio esegue `pull()` e poi `push()` su ciascun backend.
     public var autoSyncOnLaunch: Bool
+    /// Quota massima per la cache file degli asset (in byte). 0 = disattivata. Default: 200 MB
+    public var assetCacheQuotaBytes: Int
     /// Strategia per derivare il nome dello store in funzione dell’account/logica d’istanza.
     public var storeNameForAccount: (AccountDescriptor) -> String
     /// Identificativo univoco dell’istanza (prefissi subscription/notifiche, telemetria, ecc.).
@@ -63,6 +65,7 @@ public struct GraphNextConfig {
         storeName: String = "GraphNext",
         preloadFromPersistence: Bool = true,
         autoSyncOnLaunch: Bool = false,
+        assetCacheQuotaBytes: Int = 200 * 1024 * 1024,
         storeNameForAccount: @escaping (AccountDescriptor) -> String = { descriptor in
             switch descriptor {
             case .localOnly:
@@ -85,6 +88,7 @@ public struct GraphNextConfig {
         self.storeName = storeName
         self.preloadFromPersistence = preloadFromPersistence
         self.autoSyncOnLaunch = autoSyncOnLaunch
+        self.assetCacheQuotaBytes = max(0, assetCacheQuotaBytes)
         self.storeNameForAccount = storeNameForAccount
         self.instanceID = instanceID
         self.makePersistence = makePersistence
@@ -127,6 +131,17 @@ public final class GraphNext: ObservableObject {
         if config.preloadFromPersistence,
            let preloader = (self.persistence as Any) as? GraphPersistencePreloader {
             try preloader.preload(into: self.store)
+        }
+
+        // 3.5) Configure default FileAssetStorage with configured quota (if caller has not set a custom storage)
+        do {
+            let base = try FileAssetStorage.makeDefaultBaseDirectory()
+            let storage = try FileAssetStorage(baseDirectory: base, quotaBytes: config.assetCacheQuotaBytes)
+            AssetStorageProvider.shared.setStorage(storage)
+        } catch {
+            #if DEBUG
+            print("GraphNext: failed to configure default FileAssetStorage with quota: \(error)")
+            #endif
         }
 
         // 4) Backend engines (delegato alla factory fornita nel config)

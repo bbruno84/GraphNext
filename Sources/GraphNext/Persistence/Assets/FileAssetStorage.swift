@@ -35,15 +35,19 @@ public final class FileAssetStorage: AssetStorage {
     private let contentDir: URL
     private let ioQueue = DispatchQueue(label: "FileAssetStorage.ioQueue", qos: .utility)
 
+    /// Quota cache (byte). Quando superata, scatta eviction LRU (best-effort). 0 = disattivata.
+    public let quotaBytes: Int
+
     // MARK: Init
 
     /// - Parameters:
     ///   - baseDirectory: directory radice (es. Application Support / GraphNextAssets).
     ///                    Se non esiste verrà creata.
-    public init(baseDirectory: URL) throws {
+    public init(baseDirectory: URL, quotaBytes: Int = 200 * 1024 * 1024) throws {
         self.baseDirectory = baseDirectory
         self.indexDir = baseDirectory.appendingPathComponent("index", isDirectory: true)
         self.contentDir = baseDirectory.appendingPathComponent("content", isDirectory: true)
+        self.quotaBytes = max(0, quotaBytes)
 
         try FileManager.default.createDirectory(at: indexDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: contentDir, withIntermediateDirectories: true)
@@ -96,6 +100,7 @@ public final class FileAssetStorage: AssetStorage {
                 lastAccess: Date()
             )
             try self.writeIndex(record, for: assetId)
+            try self.enforceQuotaIfNeeded()
             return contentURL
         }
     }
@@ -115,9 +120,17 @@ public final class FileAssetStorage: AssetStorage {
 
     public func urlIfPresent(assetId: UUID) throws -> URL? {
         try performSync {
-            guard let rec = try self.readIndex(for: assetId) else { return nil }
+            guard var rec = try self.readIndex(for: assetId) else { return nil }
             let contentURL = self.contentURL(forSHA: rec.sha256)
-            return FileManager.default.fileExists(atPath: contentURL.path) ? contentURL : nil
+            guard FileManager.default.fileExists(atPath: contentURL.path) else {
+                // file mancante: indice stale → pulizia
+                try? self.deleteIndex(for: assetId)
+                return nil
+            }
+            // touch LRU
+            rec.lastAccess = Date()
+            try self.writeIndex(rec, for: assetId)
+            return contentURL
         }
     }
 
@@ -228,5 +241,72 @@ public final class FileAssetStorage: AssetStorage {
             }
         }
         return false
+    }
+
+    // MARK: - LRU / Eviction
+
+    /// Restituisce tutti gli index record (assetId -> record).
+    private func readAllIndexRecords() -> [(UUID, IndexRecord)] {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: indexDir, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        var result: [(UUID, IndexRecord)] = []
+        for url in files where url.pathExtension == "json" {
+            let name = url.deletingPathExtension().lastPathComponent
+            guard let id = UUID(uuidString: name) else { continue }
+            if let data = try? Data(contentsOf: url),
+               let rec = try? JSONDecoder().decode(IndexRecord.self, from: data) {
+                result.append((id, rec))
+            }
+        }
+        return result
+    }
+
+    /// Calcola la dimensione totale dichiarata dagli index record.
+    private func totalSizeBytes() -> Int {
+        readAllIndexRecords().reduce(0) { $0 + $1.1.length }
+    }
+
+    /// Mappa sha256 -> numero di riferimenti negli index record.
+    private func shaRefCounts() -> [String: Int] {
+        var counts: [String: Int] = [:]
+        for (_, rec) in readAllIndexRecords() {
+            counts[rec.sha256, default: 0] += 1
+        }
+        return counts
+    }
+
+    /// Se la quota è superata, rimuove file partendo dai meno recenti (LRU) finché size <= quota.
+    private func enforceQuotaIfNeeded() throws {
+        guard quotaBytes > 0 else { return }
+        var currentSize = totalSizeBytes()
+        guard currentSize > quotaBytes else { return }
+
+        // Ordina per lastAccess crescente (più vecchi prima)
+        var all = readAllIndexRecords().sorted { $0.1.lastAccess < $1.1.lastAccess }
+        var ref = shaRefCounts()
+
+        while currentSize > quotaBytes, let victim = all.first {
+            let (assetId, rec) = victim
+            // Elimina index del victim
+            try? self.deleteIndex(for: assetId)
+            currentSize -= rec.length
+
+            // Se questo sha non è più referenziato, rimuovi il contenuto
+            if let c = ref[rec.sha256] {
+                let newC = c - 1
+                if newC <= 0 {
+                    let url = self.contentURL(forSHA: rec.sha256)
+                    try? FileManager.default.removeItem(at: url)
+                    ref[rec.sha256] = nil
+                } else {
+                    ref[rec.sha256] = newC
+                }
+            }
+
+            // Rimuovi l'elemento dalla lista e continua
+            all.removeFirst()
+        }
     }
 }
