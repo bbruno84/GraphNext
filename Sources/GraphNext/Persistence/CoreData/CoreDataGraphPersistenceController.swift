@@ -15,70 +15,34 @@ public final class CoreDataGraphPersistenceController {
     // Assets helper
     private var assetStorage: AssetStorage { AssetStorageProvider.shared.storage }
 
+    // Reuse a single NSManagedObjectModel across the process to avoid Core Data
+    // warnings about multiple models claiming the same NSManagedObject subclasses.
+    private static let sharedModel: NSManagedObjectModel = {
+        // 1) Exact momd in SwiftPM resources
+        if let url = Bundle.module.url(forResource: "GraphNext", withExtension: "momd"),
+           let m = NSManagedObjectModel(contentsOf: url), !m.entities.isEmpty { return m }
+        // 2) Some toolchains expose a single .mom inside the .momd directory
+        if let url = Bundle.module.url(forResource: "Model", withExtension: "mom", subdirectory: "GraphNext.momd"),
+           let m = NSManagedObjectModel(contentsOf: url), !m.entities.isEmpty { return m }
+        // 3) Xcode unit tests context
+        let classBundle = Bundle(for: CoreDataGraphPersistenceController.self)
+        if let url = classBundle.url(forResource: "GraphNext", withExtension: "momd"),
+           let m = NSManagedObjectModel(contentsOf: url), !m.entities.isEmpty { return m }
+        // 4) Fallback to merged models across known bundles
+        if let m = NSManagedObjectModel.mergedModel(from: [Bundle.module, classBundle, Bundle.main]),
+           !m.entities.isEmpty { return m }
+        fatalError("Failed to load Core Data model 'GraphNext'. Ensure Package.swift includes the Resources folder under the GraphNext target.")
+    }()
+
     public init(storeName: String = "GraphNext", inMemory: Bool = false) {
-        // Load the Core Data model in a SwiftPM-friendly way: recursively scan bundle contents
-        let model: NSManagedObjectModel = {
-            func findModelURLs(in bundle: Bundle) -> ([URL], [URL]) {
-                var momd: [URL] = []
-                var mom: [URL] = []
-                let fm = FileManager.default
-                let root = bundle.bundleURL
-                if let en = fm.enumerator(at: root, includingPropertiesForKeys: nil) {
-                    for case let url as URL in en {
-                        let ext = url.pathExtension.lowercased()
-                        if ext == "momd" { momd.append(url) }
-                        else if ext == "mom" { mom.append(url) }
-                    }
-                }
-                return (momd, mom)
-            }
+        let model = Self.sharedModel
 
-            func firstNonEmptyModel(from urls: [URL]) -> NSManagedObjectModel? {
-                for u in urls {
-                    if let m = NSManagedObjectModel(contentsOf: u), !m.entities.isEmpty { return m }
-                }
-                return nil
-            }
+        // Sanity check on expected entities
+        let names = Set(model.entitiesByName.keys)
+        precondition(names.contains("CDEntity") && names.contains("CDRelationship"),
+                     "Core Data model missing expected entities. Available: \(names.sorted())")
 
-            // 1) Try Bundle.module
-            do {
-                let (momd, mom) = findModelURLs(in: Bundle.module)
-                if let m = firstNonEmptyModel(from: momd + mom) { return m }
-            }
-            // 2) Try class bundle
-            do {
-                let b = Bundle(for: CoreDataGraphPersistenceController.self)
-                let (momd, mom) = findModelURLs(in: b)
-                if let m = firstNonEmptyModel(from: momd + mom) { return m }
-            }
-            // 3) Try main bundle
-            do {
-                let (momd, mom) = findModelURLs(in: Bundle.main)
-                if let m = firstNonEmptyModel(from: momd + mom) { return m }
-            }
-
-            // 4) Fallback to merged models
-            if let m = NSManagedObjectModel.mergedModel(from: [Bundle.module]), !m.entities.isEmpty { return m }
-            if let m = NSManagedObjectModel.mergedModel(from: [Bundle(for: CoreDataGraphPersistenceController.self)]), !m.entities.isEmpty { return m }
-            if let m = NSManagedObjectModel.mergedModel(from: [Bundle.main]), !m.entities.isEmpty { return m }
-
-            // Diagnostics before failing
-            let (modMomd, modMom) = findModelURLs(in: Bundle.module)
-            let clsB = Bundle(for: CoreDataGraphPersistenceController.self)
-            let (clsMomd, clsMom) = findModelURLs(in: clsB)
-            let (mainMomd, mainMom) = findModelURLs(in: Bundle.main)
-            fatalError("Failed to locate a non-empty Core Data model.\n" +
-                       "Bundle.module: \(Bundle.module.bundleURL)\n  momd: \(modMomd)\n  mom:  \(modMom)\n" +
-                       "Class bundle: \(clsB.bundleURL)\n  momd: \(clsMomd)\n  mom:  \(clsMom)\n" +
-                       "Bundle.main: \(Bundle.main.bundleURL)\n  momd: \(mainMomd)\n  mom:  \(mainMom)")
-        }()
-
-        do {
-            let names = Set(model.entitiesByName.keys)
-            guard names.contains("CDEntity"), names.contains("CDRelationship") else {
-                fatalError("Core Data model is missing expected entities (CDEntity/CDRelationship). Available: \(names.sorted())")
-            }
-        }
+        // Container + store configuration
         container = NSPersistentContainer(name: storeName, managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = inMemory ? NSInMemoryStoreType : NSSQLiteStoreType
@@ -87,9 +51,7 @@ public final class CoreDataGraphPersistenceController {
         container.persistentStoreDescriptions = [description]
 
         container.loadPersistentStores { _, error in
-            if let error = error {
-                fatalError("CoreData load error: \(error)")
-            }
+            if let error = error { fatalError("CoreData load error: \(error)") }
         }
     }
 

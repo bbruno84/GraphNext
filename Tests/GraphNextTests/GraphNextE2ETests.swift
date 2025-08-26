@@ -16,8 +16,7 @@ final class GraphNextE2ETests: XCTestCase {
         // 0) INIT: due controller GRDB in‑memory (LOCAL e REMOTE)
         let local = try GRDBGraphPersistenceController(path: "E2E_Local_1", inMemory: true)
         let backend = MockRemoteBackend()
-        let remote = try GRDBGraphPersistenceController(path: "E2E_Remote", inMemory: true)
-
+    
         // 1) CREATE: 2 Entity + 1 Relationship (owner→customer), poi attach dell'asset all'owner
         let owner = Entity(
             id: UUID(),
