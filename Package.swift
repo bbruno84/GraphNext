@@ -23,7 +23,7 @@ let package = Package(
             path: "Sources/GraphNext",
             resources: [
                 // Modello Core Data all’interno del target principale
-                .process("Persistence/Resources/GraphNext.xcdatamodeld")
+                .process("Persistence/Resources")
             ],
             swiftSettings: [
                 // Abilita sempre rtti minori e ottimizzazioni se vuoi

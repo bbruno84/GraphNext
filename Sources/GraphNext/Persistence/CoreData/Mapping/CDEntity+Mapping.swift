@@ -23,8 +23,8 @@ extension CDEntity {
 
     func toEntity() -> Entity {
         return Entity(
-            id: id!,
-            type: type!,
+            id: id,
+            type: type,
             tag: (tag as? Set<String>) ?? [],
             group: (group as? Set<String>) ?? [],
             created: (try? JSONDecoder().decode(AuditInfo.self, from: created ?? Data())) ?? .init(by: "unknown", at: .distantPast),

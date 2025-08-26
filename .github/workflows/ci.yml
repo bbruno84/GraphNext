@@ -25,6 +25,9 @@ jobs:
           swift --version
           xcodebuild -version
 
+      - name: Compile Core Data model (SwiftPM needs precompiled .momd)
+        run: Scripts/compile_coredata_model.sh
+
       - name: Build
         run: swift build -v
 

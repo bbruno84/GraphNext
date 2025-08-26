@@ -26,8 +26,8 @@ extension CDRelationship {
 
     func toRelationship() -> Relationship {
         return Relationship(
-            id: id!,
-            type: type!,
+            id: id,
+            type: type,
             tag: (tag as? Set<String>) ?? [],
             group: (group as? Set<String>) ?? [],
             created: (try? JSONDecoder().decode(AuditInfo.self, from: created ?? Data())) ?? .init(by: "unknown", at: .distantPast),

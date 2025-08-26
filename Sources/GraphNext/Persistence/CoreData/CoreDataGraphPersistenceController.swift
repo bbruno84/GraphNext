@@ -16,13 +16,70 @@ public final class CoreDataGraphPersistenceController {
     private var assetStorage: AssetStorage { AssetStorageProvider.shared.storage }
 
     public init(storeName: String = "GraphNext", inMemory: Bool = false) {
-        guard let modelURL = Bundle.module.url(forResource: "GraphNext", withExtension: "momd"),
-              let model = NSManagedObjectModel(contentsOf: modelURL) else {
-            fatalError("Failed to locate Core Data model GraphNext")
+        // Load the Core Data model in a SwiftPM-friendly way: recursively scan bundle contents
+        let model: NSManagedObjectModel = {
+            func findModelURLs(in bundle: Bundle) -> ([URL], [URL]) {
+                var momd: [URL] = []
+                var mom: [URL] = []
+                let fm = FileManager.default
+                let root = bundle.bundleURL
+                if let en = fm.enumerator(at: root, includingPropertiesForKeys: nil) {
+                    for case let url as URL in en {
+                        let ext = url.pathExtension.lowercased()
+                        if ext == "momd" { momd.append(url) }
+                        else if ext == "mom" { mom.append(url) }
+                    }
+                }
+                return (momd, mom)
+            }
+
+            func firstNonEmptyModel(from urls: [URL]) -> NSManagedObjectModel? {
+                for u in urls {
+                    if let m = NSManagedObjectModel(contentsOf: u), !m.entities.isEmpty { return m }
+                }
+                return nil
+            }
+
+            // 1) Try Bundle.module
+            do {
+                let (momd, mom) = findModelURLs(in: Bundle.module)
+                if let m = firstNonEmptyModel(from: momd + mom) { return m }
+            }
+            // 2) Try class bundle
+            do {
+                let b = Bundle(for: CoreDataGraphPersistenceController.self)
+                let (momd, mom) = findModelURLs(in: b)
+                if let m = firstNonEmptyModel(from: momd + mom) { return m }
+            }
+            // 3) Try main bundle
+            do {
+                let (momd, mom) = findModelURLs(in: Bundle.main)
+                if let m = firstNonEmptyModel(from: momd + mom) { return m }
+            }
+
+            // 4) Fallback to merged models
+            if let m = NSManagedObjectModel.mergedModel(from: [Bundle.module]), !m.entities.isEmpty { return m }
+            if let m = NSManagedObjectModel.mergedModel(from: [Bundle(for: CoreDataGraphPersistenceController.self)]), !m.entities.isEmpty { return m }
+            if let m = NSManagedObjectModel.mergedModel(from: [Bundle.main]), !m.entities.isEmpty { return m }
+
+            // Diagnostics before failing
+            let (modMomd, modMom) = findModelURLs(in: Bundle.module)
+            let clsB = Bundle(for: CoreDataGraphPersistenceController.self)
+            let (clsMomd, clsMom) = findModelURLs(in: clsB)
+            let (mainMomd, mainMom) = findModelURLs(in: Bundle.main)
+            fatalError("Failed to locate a non-empty Core Data model.\n" +
+                       "Bundle.module: \(Bundle.module.bundleURL)\n  momd: \(modMomd)\n  mom:  \(modMom)\n" +
+                       "Class bundle: \(clsB.bundleURL)\n  momd: \(clsMomd)\n  mom:  \(clsMom)\n" +
+                       "Bundle.main: \(Bundle.main.bundleURL)\n  momd: \(mainMomd)\n  mom:  \(mainMom)")
+        }()
+
+        do {
+            let names = Set(model.entitiesByName.keys)
+            guard names.contains("CDEntity"), names.contains("CDRelationship") else {
+                fatalError("Core Data model is missing expected entities (CDEntity/CDRelationship). Available: \(names.sorted())")
+            }
         }
-
         container = NSPersistentContainer(name: storeName, managedObjectModel: model)
-
         let description = NSPersistentStoreDescription()
         description.type = inMemory ? NSInMemoryStoreType : NSSQLiteStoreType
         description.shouldMigrateStoreAutomatically = true
@@ -41,7 +98,7 @@ public final class CoreDataGraphPersistenceController {
     public func save(node: any GraphNode) throws {
         var thrownError: Error?
         let semaphore = DispatchSemaphore(value: 0)
-        container.performBackgroundTask { context in
+        container.performBackgroundTask { (context: NSManagedObjectContext) in
             do {
                 if let entity = node as? Entity {
                     let cdEntity = self.fetchOrCreateEntity(id: entity.id, in: context)
@@ -67,7 +124,7 @@ public final class CoreDataGraphPersistenceController {
     public func loadNode(id: UUID) throws -> (any GraphNode)? {
         var result: (any GraphNode)?
         let semaphore = DispatchSemaphore(value: 0)
-        container.performBackgroundTask { context in
+        container.performBackgroundTask { (context: NSManagedObjectContext) in
             if let cdEntity = self.fetchEntity(id: id, in: context) {
                 result = cdEntity.toEntity()
             } else if let cdRelationship = self.fetchRelationship(id: id, in: context) {
@@ -85,7 +142,7 @@ public final class CoreDataGraphPersistenceController {
         var result: [any GraphNode] = []
         var thrownError: Error?
         let semaphore = DispatchSemaphore(value: 0)
-        container.performBackgroundTask { context in
+        container.performBackgroundTask { (context: NSManagedObjectContext) in
             do {
                 let entityRequest: NSFetchRequest<CDEntity> = CDEntity.fetchRequest()
                 let relationshipRequest: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
@@ -113,7 +170,7 @@ public final class CoreDataGraphPersistenceController {
         var result: [Relationship] = []
         var thrownError: Error?
         let semaphore = DispatchSemaphore(value: 0)
-        container.performBackgroundTask { context in
+        container.performBackgroundTask { (context: NSManagedObjectContext) in
             do {
                 let request: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
                 request.predicate = NSPredicate(format: "from == %@", id as CVarArg)
@@ -134,7 +191,7 @@ public final class CoreDataGraphPersistenceController {
         var result: [Relationship] = []
         var thrownError: Error?
         let semaphore = DispatchSemaphore(value: 0)
-        container.performBackgroundTask { context in
+        container.performBackgroundTask { (context: NSManagedObjectContext) in
             do {
                 let request: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
                 request.predicate = NSPredicate(format: "to == %@", id as CVarArg)
@@ -156,7 +213,7 @@ public final class CoreDataGraphPersistenceController {
     public func deleteNode(id: UUID) throws {
         var thrownError: Error?
         let semaphore = DispatchSemaphore(value: 0)
-        container.performBackgroundTask { context in
+        container.performBackgroundTask { (context: NSManagedObjectContext) in
             if let entity = self.fetchEntity(id: id, in: context) {
                 // Best-effort: if this is an asset entity, remove the local file before deleting from Core Data
                 if entity.type == "asset" {
@@ -215,7 +272,7 @@ public final class CoreDataGraphPersistenceController {
     // MARK: - Cascade Delete: Entity + Attached Relationships
 
     public func deleteEntityAndAttachedRelationships(id: UUID) async throws {
-        try await container.performBackgroundTask { context in
+        try await container.performBackgroundTask { (context: NSManagedObjectContext) in
             // 1) Elimina relazioni collegate (fetch + delete manuale)
             let relFetch: NSFetchRequest<CDRelationship> = CDRelationship.fetchRequest()
             relFetch.predicate = NSPredicate(format: "from == %@ OR to == %@", id as CVarArg, id as CVarArg)
